@@ -1266,11 +1266,17 @@ export default function App() {
               <>
                 <h3 style={{ fontSize: 24, marginBottom: 12 }}>Producto</h3>
                 {productosHist.map((p, i) =>
-                  renderFilaHistorial(
-                    `producto_${p.nombre}_${i}`,
-                    `${p.nombre} → ${p.cantidad}`
-                  )
-                )}
+  renderFilaHistorial(
+    `producto_${p.nombre}_${i}`,
+    `${p.nombre} → ${p.cantidad}`,
+    () => {
+      setNombreProducto(p.nombre);
+      setCantidadProducto(String(p.cantidad));
+      setProductoEditando(i);
+      setDetalleModal(false);
+    }
+  )
+)}
               </>
             )}
  
@@ -1279,11 +1285,17 @@ export default function App() {
                 <div style={{ borderTop: "2px solid #eee", margin: "14px 0" }} />
                 <h3 style={{ fontSize: 24, marginBottom: 12 }}>PFN</h3>
                 {pfnHist.map((p, i) =>
-                  renderFilaHistorial(
-                    `pfn_${p.nombre}_${i}`,
-                    `${p.nombre} → ${p.cantidad}`
-                  )
-                )}
+  renderFilaHistorial(
+    `pfn_${p.nombre}_${i}`,
+    `${p.nombre} → ${p.cantidad}`,
+    () => {
+      setNombrePfn(p.nombre);
+      setCantidadPfn(String(p.cantidad));
+      setPfnEditando(i);
+      setDetalleModal(false);
+    }
+  )
+)}
               </>
             )}
  
