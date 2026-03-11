@@ -887,65 +887,7 @@ export default function App() {
           style={inputStyle}
         />
       </section>
-
-      <section style={cardStyle}>
-        <h2>Envases</h2>
-        {ENVASES.map((sku) => (
-          <button
-            key={sku.id}
-            onClick={() => {
-              setSkuActivo(sku);
-              setModalInicial(null);
-            }}
-            style={{
-              ...chipStyle,
-              background: detalleConteo[sku.id] ? "#d9f99d" : "#fff"
-            }}
-          >
-            {sku.nombre}
-          </button>
-        ))}
-      </section>
-
-      <section style={cardStyle}>
-        <h2>Jabas vacías</h2>
-        {JABAS.map((sku) => (
-          <button
-            key={sku.id}
-            onClick={() => {
-              setSkuActivo(sku);
-              setModalInicial(null);
-            }}
-            style={{
-              ...chipStyle,
-              background: detalleConteo[sku.id] ? "#d9f99d" : "#fff"
-            }}
-          >
-            {sku.nombre}
-          </button>
-        ))}
-      </section>
-
-      <section style={cardStyle}>
-        <h2>Activos</h2>
-        {ACTIVOS.map((sku) => (
-          <button
-            key={sku.id}
-            onClick={() => {
-              setSkuActivo(sku);
-              setModalInicial(null);
-            }}
-            style={{
-              ...chipStyle,
-              background: detalleConteo[sku.id] ? "#d9f99d" : "#fff"
-            }}
-          >
-            {sku.nombre}
-          </button>
-        ))}
-      </section>
-
-      <section style={cardStyle}>
+<section style={cardStyle}>
         <h2>Producto</h2>
         <input
           placeholder="Nombre producto"
@@ -1018,6 +960,62 @@ export default function App() {
               Editar
             </button>
           </div>
+        ))}
+      </section>
+      <section style={cardStyle}>
+        <h2>Envases</h2>
+        {ENVASES.map((sku) => (
+          <button
+            key={sku.id}
+            onClick={() => {
+              setSkuActivo(sku);
+              setModalInicial(null);
+            }}
+            style={{
+              ...chipStyle,
+              background: detalleConteo[sku.id] ? "#d9f99d" : "#fff"
+            }}
+          >
+            {sku.nombre}
+          </button>
+        ))}
+      </section>
+
+      <section style={cardStyle}>
+        <h2>Jabas vacías</h2>
+        {JABAS.map((sku) => (
+          <button
+            key={sku.id}
+            onClick={() => {
+              setSkuActivo(sku);
+              setModalInicial(null);
+            }}
+            style={{
+              ...chipStyle,
+              background: detalleConteo[sku.id] ? "#d9f99d" : "#fff"
+            }}
+          >
+            {sku.nombre}
+          </button>
+        ))}
+      </section>
+
+      <section style={cardStyle}>
+        <h2>Activos</h2>
+        {ACTIVOS.map((sku) => (
+          <button
+            key={sku.id}
+            onClick={() => {
+              setSkuActivo(sku);
+              setModalInicial(null);
+            }}
+            style={{
+              ...chipStyle,
+              background: detalleConteo[sku.id] ? "#d9f99d" : "#fff"
+            }}
+          >
+            {sku.nombre}
+          </button>
         ))}
       </section>
 
@@ -1156,93 +1154,239 @@ export default function App() {
           ))}
         </section>
       )}
-
-      {detalleModal && (
-        <div style={overlayStyle}>
-          <div style={modalStyle}>
-            <h2 style={{ marginTop: 0 }}>Detalle del Historial</h2>
-
-            {detalleItemsHistorial.map((d) => {
-              const esBotella = ENVASES.some((e) => e.id === d.sku_codigo);
-              const valor = esBotella ? d.total_botellas : d.cajas;
-
-              return (
-                <div
-                  key={d.id}
-                  onClick={() => marcarHistorial(d.descripcion)}
+{detalleModal && (
+  <div style={overlayStyle}>
+    <div
+      style={{
+        ...modalStyle,
+        width: 430,
+        maxHeight: "85vh",
+        padding: 22
+      }}
+    >
+      <h2 style={{ marginTop: 0, fontSize: 28 }}>Detalle del Historial</h2>
+ 
+      {(() => {
+        const meta = conteoHistorialActual
+          ? localStorage.getItem(metaKey(conteoHistorialActual.id))
+          : null;
+ 
+        let productosHist = [];
+        let pfnHist = [];
+ 
+        if (meta) {
+          try {
+            const parsed = JSON.parse(meta);
+            productosHist = parsed.productos || [];
+            pfnHist = parsed.pfnItems || [];
+          } catch {
+            productosHist = [];
+            pfnHist = [];
+          }
+        }
+ 
+        const envases330Hist = detalleItemsHistorial.filter((d) =>
+          ["330_VERDE", "330_AMBAR", "330_FLINT"].includes(d.sku_codigo)
+        );
+ 
+        const envases11Hist = detalleItemsHistorial.filter((d) =>
+          ["550_VERDE", "550_FLINT", "550_AMBAR", "600_AMBAR"].includes(d.sku_codigo)
+        );
+ 
+        const envases1000Hist = detalleItemsHistorial.filter((d) =>
+          ["850_VERDE", "1000_AMBAR", "1000_FLINT"].includes(d.sku_codigo)
+        );
+ 
+        const jabasHist = detalleItemsHistorial.filter((d) =>
+          ["JABA_330", "JABA_11", "JABA_1000"].includes(d.sku_codigo)
+        );
+ 
+        const activosHist = detalleItemsHistorial.filter((d) =>
+          ["PALETA_11", "PALETA_12", "CAJA_BEES"].includes(d.sku_codigo)
+        );
+ 
+        const totalJabas330Hist =
+          envases330Hist.reduce((acc, d) => acc + (d.cajas || 0), 0) +
+          (jabasHist.find((d) => d.sku_codigo === "JABA_330")?.cajas || 0);
+ 
+        const totalJabas11Hist =
+          envases11Hist.reduce((acc, d) => acc + (d.cajas || 0), 0) +
+          (jabasHist.find((d) => d.sku_codigo === "JABA_11")?.cajas || 0);
+ 
+        const totalJabas1000Hist =
+          envases1000Hist.reduce((acc, d) => acc + (d.cajas || 0), 0) +
+          (jabasHist.find((d) => d.sku_codigo === "JABA_1000")?.cajas || 0);
+ 
+        function estiloSeleccionable(key) {
+          return {
+            fontSize: 22,
+            fontWeight: "bold",
+            marginBottom: 10,
+            padding: 12,
+            borderRadius: 12,
+            cursor: "pointer",
+            background: marcadosHistorial[key] ? "#b6f5b6" : "#fff",
+            border: "1px solid #eee",
+            lineHeight: 1.35
+          };
+        }
+ 
+        function renderFilaHistorial(key, texto, onEdit = null) {
+          return (
+            <div
+              key={key}
+              onClick={() => marcarHistorial(key)}
+              style={estiloSeleccionable(key)}
+            >
+              <div>{texto}</div>
+ 
+              {onEdit && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEdit();
+                  }}
                   style={{
-                    ...detailRowStyle,
-                    background: marcadosHistorial[d.descripcion] ? "#b6f5b6" : "transparent",
-                    borderRadius: 10,
-                    padding: 10,
-                    cursor: "pointer"
+                    ...miniButtonStyle,
+                    marginTop: 10,
+                    fontSize: 16,
+                    padding: "10px 12px"
                   }}
                 >
-                  <div style={{ fontSize: 22, fontWeight: "bold" }}>
-                    {d.descripcion} → {valor}
-                  </div>
-
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      editarSkuDesdeHistorial(d);
-                    }}
-                    style={{ ...miniButtonStyle, marginTop: 8 }}
-                  >
-                    Modificar SKU
-                  </button>
-                </div>
-              );
-            })}
-
-            {conteoHistorialActual && (() => {
-              const meta = localStorage.getItem(metaKey(conteoHistorialActual.id));
-              if (!meta) return null;
-
-              try {
-                const parsed = JSON.parse(meta);
-                const productosHist = parsed.productos || [];
-                const pfnHist = parsed.pfnItems || [];
-
-                return (
-                  <>
-                    {productosHist.length > 0 && (
-                      <>
-                        <div style={{ borderTop: "2px solid #eee", margin: "12px 0" }} />
-                        <h3>Producto</h3>
-                        {productosHist.map((p, i) => (
-                          <div key={`hp-${i}`} style={{ fontSize: 22, fontWeight: "bold", marginBottom: 8 }}>
-                            {p.nombre} → {p.cantidad}
-                          </div>
-                        ))}
-                      </>
-                    )}
-
-                    {pfnHist.length > 0 && (
-                      <>
-                        <div style={{ borderTop: "2px solid #eee", margin: "12px 0" }} />
-                        <h3>PFN</h3>
-                        {pfnHist.map((p, i) => (
-                          <div key={`hf-${i}`} style={{ fontSize: 22, fontWeight: "bold", marginBottom: 8 }}>
-                            {p.nombre} → {p.cantidad}
-                          </div>
-                        ))}
-                      </>
-                    )}
-                  </>
-                );
-              } catch {
-                return null;
-              }
-            })()}
-
-            <button onClick={() => setDetalleModal(false)} style={primaryButtonStyle}>
-              Cerrar
-            </button>
-          </div>
-        </div>
-      )}
-
+                  Modificar SKU
+                </button>
+              )}
+            </div>
+          );
+        }
+ 
+        return (
+          <>
+            {productosHist.length > 0 && (
+              <>
+                <h3 style={{ fontSize: 24, marginBottom: 12 }}>Producto</h3>
+                {productosHist.map((p, i) =>
+                  renderFilaHistorial(
+                    `producto_${p.nombre}_${i}`,
+                    `${p.nombre} → ${p.cantidad}`
+                  )
+                )}
+              </>
+            )}
+ 
+            {pfnHist.length > 0 && (
+              <>
+                <div style={{ borderTop: "2px solid #eee", margin: "14px 0" }} />
+                <h3 style={{ fontSize: 24, marginBottom: 12 }}>PFN</h3>
+                {pfnHist.map((p, i) =>
+                  renderFilaHistorial(
+                    `pfn_${p.nombre}_${i}`,
+                    `${p.nombre} → ${p.cantidad}`
+                  )
+                )}
+              </>
+            )}
+ 
+            {(envases330Hist.length > 0 ||
+              envases11Hist.length > 0 ||
+              envases1000Hist.length > 0 ||
+              jabasHist.length > 0) && (
+              <>
+                <div style={{ borderTop: "2px solid #eee", margin: "14px 0" }} />
+                <h3 style={{ fontSize: 24, marginBottom: 12 }}>Envases</h3>
+ 
+                {envases330Hist.map((d) =>
+                  renderFilaHistorial(
+                    d.descripcion,
+                    `${d.descripcion} → ${d.total_botellas} botellas`,
+                    () => editarSkuDesdeHistorial(d)
+                  )
+                )}
+ 
+                {envases11Hist.map((d) =>
+                  renderFilaHistorial(
+                    d.descripcion,
+                    `${d.descripcion} → ${d.total_botellas} botellas`,
+                    () => editarSkuDesdeHistorial(d)
+                  )
+                )}
+ 
+                {envases1000Hist.map((d) =>
+                  renderFilaHistorial(
+                    d.descripcion,
+                    `${d.descripcion} → ${d.total_botellas} botellas`,
+                    () => editarSkuDesdeHistorial(d)
+                  )
+                )}
+ 
+                {jabasHist.map((d) =>
+                  renderFilaHistorial(
+                    d.descripcion,
+                    `${d.descripcion} → ${d.cajas} cajas`,
+                    () => editarSkuDesdeHistorial(d)
+                  )
+                )}
+              </>
+            )}
+ 
+            {(totalJabas330Hist > 0 || totalJabas11Hist > 0 || totalJabas1000Hist > 0) && (
+              <>
+                <div style={{ borderTop: "2px solid #eee", margin: "14px 0" }} />
+                <h3 style={{ fontSize: 24, marginBottom: 12 }}>Cajas</h3>
+ 
+                {totalJabas330Hist > 0 &&
+                  renderFilaHistorial(
+                    "total_jabas_330",
+                    `Total de Jabas 330 → ${totalJabas330Hist}`
+                  )}
+ 
+                {totalJabas11Hist > 0 &&
+                  renderFilaHistorial(
+                    "total_jabas_11",
+                    `Total de Jabas 1/1 → ${totalJabas11Hist}`
+                  )}
+ 
+                {totalJabas1000Hist > 0 &&
+                  renderFilaHistorial(
+                    "total_jabas_1000",
+                    `Total de Jabas 1000 → ${totalJabas1000Hist}`
+                  )}
+              </>
+            )}
+ 
+            {activosHist.length > 0 && (
+              <>
+                <div style={{ borderTop: "2px solid #eee", margin: "14px 0" }} />
+                <h3 style={{ fontSize: 24, marginBottom: 12 }}>Activos</h3>
+ 
+                {activosHist.map((d) =>
+                  renderFilaHistorial(
+                    d.descripcion,
+                    `${d.descripcion} → ${d.cajas}`,
+                    () => editarSkuDesdeHistorial(d)
+                  )
+                )}
+              </>
+            )}
+          </>
+        );
+      })()}
+ 
+      <button
+        onClick={() => setDetalleModal(false)}
+        style={{
+          ...primaryButtonStyle,
+          marginTop: 12,
+          fontSize: 18,
+          padding: "12px 18px"
+        }}
+      >
+        Cerrar
+      </button>
+    </div>
+  </div>
+)}
+ 
       {skuActivo && (
         <QuickCountModal
           sku={skuActivo}
