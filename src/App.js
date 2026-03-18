@@ -1520,8 +1520,4 @@ const modalStyle = {
   padding: 20
 };
 
-const detailRowStyle = {
-  borderBottom: "1px solid #eee",
-  paddingBottom: 10,
-  marginBottom: 10
-};
+
