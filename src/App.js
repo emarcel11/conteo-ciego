@@ -1404,66 +1404,55 @@ export default function App() {
               const totalJabas1000Hist =
                 envases1000Hist.reduce((acc, d) => acc + (d.cajas || 0), 0) +
                 (jabasHist.find((d) => d.sku_codigo === "JABA_1000")?.cajas || 0);
-          
-function renderFilaHistorial(key, texto, onEdit = null) {
-  const esProducto = key.startsWith("producto_");
-  const esPfn = key.startsWith("pfn_");
- 
-  const esNormal = esProducto || esPfn;
- 
-  const [nombre, valorRaw] = texto.split("→");
-  const valor = valorRaw?.trim() || "";
- 
-  return (
+
+              function estiloSeleccionable(key) {
+                return {
+                  fontSize: 22,
+                  fontWeight: "bold",
+                  marginBottom: 10,
+                  padding: 12,
+                  borderRadius: 12,
+                  cursor: "pointer",
+                  background: marcadosHistorial[key] ? "#b6f5b6" : "#fff",
+                  border: "1px solid #eee",
+                  lineHeight: 1.35
+                };
+              }
+
+              function renderFilaHistorial(key, texto, onEdit = null) {
+const [nombre, valorRaw] = texto.split("→");
+const valor = valorRaw?.trim() || "";
+return (
+  <div
+    key={key}
+    onClick={() => marcarHistorial(key)}
+    style={{
+      marginBottom: 12,
+      padding: 14,
+      borderRadius: 12,
+      background: "#fff",
+      border: "1px solid #eee"
+    }}
+  >
     <div
-      key={key}
-      onClick={() => marcarHistorial(key)}
       style={{
-        marginBottom: 12,
-        padding: 14,
-        borderRadius: 14,
-        background: marcadosHistorial[key] ? "#b6f5b6" : "#fff",
-        border: "1px solid #eee",
-        cursor: "pointer"
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        gap: 10
       }}
     >
-      {esNormal ? (
-        // 🔹 PRODUCTO Y PFN (NORMAL)
-        <div
-          style={{
-            fontSize: 20,
-            fontWeight: "bold",
-            lineHeight: 1.4
-          }}
-        >
-          {texto}
-        </div>
-      ) : (
-        // 🔥 ENVASES / JABAS / ACTIVOS (GRANDE)
-        <>
-          <div
-            style={{
-              fontSize: 22,
-              fontWeight: "bold",
-              marginBottom: 4
-            }}
-          >
-            {nombre}
-          </div>
+      {/* TEXTO */}
+      <div
+        style={{
+          fontSize: 17,
+          fontWeight: "900", // 🔥 súper negrito
+        }}
+      >
+        {nombre} → {valor}
+      </div>
  
-          <div
-            style={{
-              fontSize: 34,
-              fontWeight: "900",
-              lineHeight: 1.2,
-              color: "#111"
-            }}
-          >
-            {valor}
-          </div>
-        </>
-      )}
- 
+      {/* BOTÓN */}
       {onEdit && (
         <button
           onClick={(e) => {
@@ -1471,18 +1460,22 @@ function renderFilaHistorial(key, texto, onEdit = null) {
             onEdit();
           }}
           style={{
-            ...miniButtonStyle,
-            marginTop: 10,
-            fontSize: 16,
-            padding: "10px 12px"
+            padding: "6px 10px",
+            borderRadius: 8,
+            border: "1px solid #ddd",
+            background: "#fff",
+            cursor: "pointer",
+            fontSize: 13
           }}
         >
           Modificar
         </button>
       )}
     </div>
-  );
-}
+  </div>
+);
+              }
+
               return (
                 <>
                   {productosHist.length > 0 && (
