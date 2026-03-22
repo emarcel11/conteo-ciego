@@ -5,6 +5,62 @@ import { supabase } from "./supabaseClient";
 import { ENVASES, JABAS, ACTIVOS } from "./dataSkus";
 import QuickCountModal from "./components/QuickCountModal";
 
+function calcularExpresion(valor) {
+  try {
+    const texto = String(valor || "")
+      .replace(/\s+/g, "")
+      .replace(/[^0-9+]/g, "");
+    if (!texto) return 0;
+
+    return texto
+      .split("+")
+      .filter((n) => n !== "")
+      .reduce((acc, num) => acc + Number(num || 0), 0);
+  } catch {
+    return 0;
+  }
+}
+
+function normalizarExpresion(valor) {
+  return String(valor || "")
+    .replace(/\s+/g, "")
+    .replace(/[^0-9+]/g, "")
+    .replace(/^\++/, "")
+    .replace(/\++$/, "")
+    .replace(/\+{2,}/g, "+");
+}
+
+function formatearTiempo(segundos = 0) {
+  const m = Math.floor(segundos / 60);
+  const s = segundos % 60;
+  return `${m}m ${s}s`;
+}
+
+function inicioDelDia(fecha = new Date()) {
+  const d = new Date(fecha);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function finDelDia(fecha = new Date()) {
+  const d = new Date(fecha);
+  d.setHours(23, 59, 59, 999);
+  return d;
+}
+
+function inicioDelMes(fecha = new Date()) {
+  const d = new Date(fecha);
+  d.setDate(1);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function finDelMes(fecha = new Date()) {
+  const d = new Date(fecha.getFullYear(), fecha.getMonth() + 1, 0);
+  d.setHours(23, 59, 59, 999);
+  return d;
+}
+
 const TODOS_LOS_SKUS = [...ENVASES, ...JABAS, ...ACTIVOS];
 const SKU_MAP = Object.fromEntries(TODOS_LOS_SKUS.map((s) => [s.id, s]));
 
@@ -31,7 +87,7 @@ function metaKey(id) {
   return `conteo_ciego_meta_${id}`;
 }
 
-const DRAFT_KEY = "conteo_ciego_borrador_v2";
+const DRAFT_KEY = "conteo_ciego_borrador_v5";
 
 export default function App() {
   const [skuActivo, setSkuActivo] = useState(null);
@@ -39,6 +95,7 @@ export default function App() {
 
   const [transporte, setTransporte] = useState("");
   const [placa, setPlaca] = useState("");
+  const [conductores, setConductores] = useState("");
   const [responsable, setResponsable] = useState("");
 
   const [tiempo, setTiempo] = useState(0);
@@ -58,7 +115,6 @@ export default function App() {
   const [pfnEditando, setPfnEditando] = useState(null);
 
   const [historial, setHistorial] = useState([]);
-  const [ranking, setRanking] = useState([]);
   const [verHistorial, setVerHistorial] = useState(false);
 
   const [conteoEditando, setConteoEditando] = useState(null);
@@ -67,6 +123,18 @@ export default function App() {
   const [detalleItemsHistorial, setDetalleItemsHistorial] = useState([]);
   const [conteoHistorialActual, setConteoHistorialActual] = useState(null);
   const [marcadosHistorial, setMarcadosHistorial] = useState({});
+
+  const [dashboardVisible, setDashboardVisible] = useState(false);
+  const [dashboardData, setDashboardData] = useState({
+    totalDia: 0,
+    totalMes: 0,
+    totalMesAnterior: 0,
+    ranking: [],
+    porHora: [],
+    porDiaDelMes: []
+  });
+
+  const [appLista, setAppLista] = useState(false);
 
   const exportRef = useRef(null);
 
@@ -81,29 +149,36 @@ export default function App() {
   }, [cronometroActivo]);
 
   useEffect(() => {
-    const draft = localStorage.getItem(DRAFT_KEY);
-    if (!draft) return;
+    setTimeout(() => {
+      const draft = localStorage.getItem(DRAFT_KEY);
 
-    try {
-      const parsed = JSON.parse(draft);
-      setTransporte(parsed.transporte || "");
-      setPlaca(parsed.placa || "");
-      setResponsable(parsed.responsable || "");
-      setTiempo(parsed.tiempo || 0);
-      setCronometroActivo(false);
-      setDetalleConteo(parsed.detalleConteo || {});
-      setProductos(parsed.productos || []);
-      setPfnItems(parsed.pfnItems || []);
-      setMarcadosResultados(parsed.marcadosResultados || {});
-    } catch {
-      // ignorar
-    }
+      if (draft) {
+        try {
+          const parsed = JSON.parse(draft);
+          setTransporte(parsed.transporte || "");
+          setPlaca(parsed.placa || "");
+          setConductores(parsed.conductores || "");
+          setResponsable(parsed.responsable || "");
+          setTiempo(parsed.tiempo || 0);
+          setCronometroActivo(false);
+          setDetalleConteo(parsed.detalleConteo || {});
+          setProductos(parsed.productos || []);
+          setPfnItems(parsed.pfnItems || []);
+          setMarcadosResultados(parsed.marcadosResultados || {});
+        } catch {
+          // ignorar
+        }
+      }
+
+      setAppLista(true);
+    }, 80);
   }, []);
 
   useEffect(() => {
     const payload = {
       transporte,
       placa,
+      conductores,
       responsable,
       tiempo,
       detalleConteo,
@@ -115,6 +190,7 @@ export default function App() {
   }, [
     transporte,
     placa,
+    conductores,
     responsable,
     tiempo,
     detalleConteo,
@@ -122,6 +198,10 @@ export default function App() {
     pfnItems,
     marcadosResultados
   ]);
+
+  useEffect(() => {
+    cargarDashboard();
+  }, []);
 
   function limpiarBackup() {
     localStorage.removeItem(DRAFT_KEY);
@@ -133,6 +213,28 @@ export default function App() {
     }
   }
 
+  function abrirSkuDesdePrincipal(sku) {
+    const actual = detalleConteo[sku.id];
+
+    if (actual) {
+      if (ENVASES.some((e) => e.id === sku.id)) {
+        setModalInicial({
+          cajas: actual.cajas_texto || "",
+          mas: actual.botellas_mas || "",
+          menos: actual.botellas_menos || ""
+        });
+      } else {
+        setModalInicial({
+          cantidad: actual.cajas || ""
+        });
+      }
+    } else {
+      setModalInicial(null);
+    }
+
+    setSkuActivo(sku);
+  }
+
   function guardarSku(valores) {
     iniciarCronometroSiEsNuevo();
 
@@ -141,26 +243,31 @@ export default function App() {
 
     const esBotella = ENVASES.some((item) => item.id === sku.id);
 
-    let nuevoDetalle;
-
     if (esBotella) {
-      const cajas = Number(valores.cajas) || 0;
+      const expresionFinal = normalizarExpresion(valores.cajas || "");
+      const cajas = calcularExpresion(expresionFinal);
       const mas = Number(valores.mas) || 0;
       const menos = Number(valores.menos) || 0;
       const total = cajas * sku.pack + mas - menos;
 
-      nuevoDetalle = {
+      const nuevoDetalle = {
         sku_codigo: sku.id,
         descripcion: sku.nombre,
         cajas,
+        cajas_texto: expresionFinal,
         botellas_mas: mas,
         botellas_menos: menos,
         total_botellas: total
       };
+
+      setDetalleConteo((prev) => ({
+        ...prev,
+        [sku.id]: nuevoDetalle
+      }));
     } else {
       const cantidad = Number(valores.cantidad) || 0;
 
-      nuevoDetalle = {
+      const nuevoDetalle = {
         sku_codigo: sku.id,
         descripcion: sku.nombre,
         cajas: cantidad,
@@ -168,35 +275,15 @@ export default function App() {
         botellas_menos: 0,
         total_botellas: cantidad
       };
-    }
 
-    setDetalleConteo((prev) => ({
-      ...prev,
-      [sku.id]: nuevoDetalle
-    }));
+      setDetalleConteo((prev) => ({
+        ...prev,
+        [sku.id]: nuevoDetalle
+      }));
+    }
 
     setSkuActivo(null);
     setModalInicial(null);
-  }
-
-  function abrirEditarSkuActual(idSku) {
-    const sku = SKU_MAP[idSku];
-    const actual = detalleConteo[idSku];
-    if (!sku || !actual) return;
-
-    if (ENVASES.some((e) => e.id === idSku)) {
-      setModalInicial({
-        cajas: actual.cajas || 0,
-        mas: actual.botellas_mas || 0,
-        menos: actual.botellas_menos || 0
-      });
-    } else {
-      setModalInicial({
-        cantidad: actual.cajas || 0
-      });
-    }
-
-    setSkuActivo(sku);
   }
 
   function agregarOActualizarProducto() {
@@ -249,17 +336,8 @@ export default function App() {
     setCantidadPfn("");
   }
 
-  const totalBotellasConteo = useMemo(() => {
-    return Object.values(detalleConteo).reduce((acc, item) => {
-      if (ENVASES.some((e) => e.id === item.sku_codigo)) {
-        return acc + (item.total_botellas || 0);
-      }
-      return acc;
-    }, 0);
-  }, [detalleConteo]);
-
   const itemsOrdenados = useMemo(() => {
-    return ORDEN_RESULTADOS.map((id) => detalleConteo[id]).filter((item) => !!item);
+    return ORDEN_RESULTADOS.map((id) => detalleConteo[id]).filter(Boolean);
   }, [detalleConteo]);
 
   const envases330 = itemsOrdenados.filter((item) =>
@@ -294,6 +372,15 @@ export default function App() {
   const totalJabas11 = cajasLlenas11 + jabas11Vacias;
   const totalJabas1000 = cajasLlenas1000 + jabas1000Vacias;
 
+  const totalBotellasConteo = useMemo(() => {
+    return Object.values(detalleConteo).reduce((acc, item) => {
+      if (ENVASES.some((e) => e.id === item.sku_codigo)) {
+        return acc + (item.total_botellas || 0);
+      }
+      return acc;
+    }, 0);
+  }, [detalleConteo]);
+
   function marcarResultado(nombre) {
     setMarcadosResultados((prev) => ({
       ...prev,
@@ -308,7 +395,7 @@ export default function App() {
     }));
   }
 
-  function renderLineaResultado(item, unidad, onEdit = null) {
+  function renderLineaResultado(item, unidad) {
     const valor = unidad === "botellas" ? item.total_botellas : item.cajas;
 
     return (
@@ -337,17 +424,11 @@ export default function App() {
         >
           {item.descripcion} → {valor} {unidad}
         </div>
-
-        {onEdit && (
-          <button onClick={onEdit} style={miniButtonStyle}>
-            Editar
-          </button>
-        )}
       </div>
     );
   }
 
-  function renderLineaSimple(nombre, valor, onEdit = null) {
+  function renderLineaSimple(nombre, valor) {
     return (
       <div
         key={nombre}
@@ -374,26 +455,32 @@ export default function App() {
         >
           {nombre} → {valor}
         </div>
-
-        {onEdit && (
-          <button onClick={onEdit} style={miniButtonStyle}>
-            Editar
-          </button>
-        )}
       </div>
     );
   }
 
+  function construirMetaPayload() {
+    return {
+      productos,
+      pfnItems,
+      detalleTextos: Object.fromEntries(
+        Object.values(detalleConteo)
+          .filter((item) => item?.cajas_texto)
+          .map((item) => [item.sku_codigo, item.cajas_texto])
+      )
+    };
+  }
+
   async function guardarConteo() {
-    if (!transporte || !placa || !responsable) {
-      alert("Completa transporte, placa y responsable");
+    if (!transporte || !placa || !conductores || !responsable) {
+      alert("Completa transporte, placa, conductor y responsable");
       return;
     }
 
     const confirmado = window.confirm(
-      `¿Deseas guardar este conteo?\n\nTransporte: ${transporte}\nPlaca: ${placa}\nResponsable: ${responsable}\nTiempo: ${Math.floor(
-        tiempo / 60
-      )}m ${tiempo % 60}s`
+      `¿Deseas guardar este conteo?\n\nTransporte: ${transporte}\nPlaca: ${placa}\nConductor: ${conductores}\nResponsable: ${responsable}\nTiempo: ${formatearTiempo(
+        tiempo
+      )}`
     );
 
     if (!confirmado) return;
@@ -402,8 +489,9 @@ export default function App() {
       usuario: responsable,
       transporte,
       placa,
+      conductores,
       responsable,
-      fecha: new Date(),
+      fecha: new Date().toISOString(),
       tiempo_conteo: tiempo,
       total_botellas: totalBotellasConteo,
       estado: "en_proceso"
@@ -419,13 +507,17 @@ export default function App() {
       total_botellas: item.total_botellas || 0
     }));
 
+    const metaPayload = construirMetaPayload();
+
     if (conteoEditando) {
       const { error: errorUpdate } = await supabase
         .from("conteos")
         .update({
           transporte,
           placa,
+          conductores,
           responsable,
+          tiempo_conteo: tiempo,
           total_botellas: totalBotellasConteo
         })
         .eq("id", conteoEditando);
@@ -459,28 +551,23 @@ export default function App() {
         }
       }
 
-      localStorage.setItem(
-        metaKey(conteoEditando),
-        JSON.stringify({ productos, pfnItems })
-      );
+      localStorage.setItem(metaKey(conteoEditando), JSON.stringify(metaPayload));
 
       alert("Conteo actualizado");
+      await cargarDashboard();
       limpiarPantalla();
       return;
     }
 
-    const { data, error } = await supabase
-      .from("conteos")
-      .insert([cabecera])
-      .select();
+    const { data, error } = await supabase.from("conteos").insert([cabecera]).select();
 
     if (error) {
-      console.log("ERROR SUPABASE:", error);
+      console.log(error);
       alert("Error guardando conteo");
       return;
     }
 
-    const conteoId = data[0].id;
+    const conteoId = data?.[0]?.id;
 
     if (detalleArray.length > 0) {
       const { error: errorDetalle } = await supabase
@@ -494,12 +581,10 @@ export default function App() {
       }
     }
 
-    localStorage.setItem(
-      metaKey(conteoId),
-      JSON.stringify({ productos, pfnItems })
-    );
+    localStorage.setItem(metaKey(conteoId), JSON.stringify(metaPayload));
 
     alert("Conteo guardado");
+    await cargarDashboard();
     limpiarPantalla();
   }
 
@@ -509,6 +594,7 @@ export default function App() {
 
     setTransporte("");
     setPlaca("");
+    setConductores("");
     setResponsable("");
 
     setTiempo(0);
@@ -543,30 +629,6 @@ export default function App() {
     }
 
     setHistorial(data || []);
-
-    const resumen = {};
-    (data || []).forEach((c) => {
-      if (!resumen[c.responsable]) {
-        resumen[c.responsable] = {
-          nombre: c.responsable,
-          conteos: 0,
-          tiempoTotal: 0
-        };
-      }
-
-      resumen[c.responsable].conteos += 1;
-      resumen[c.responsable].tiempoTotal += c.tiempo_conteo || 0;
-    });
-
-    const rankingFinal = Object.values(resumen)
-      .map((r) => ({
-        nombre: r.nombre,
-        conteos: r.conteos,
-        tiempoPromedio: Math.round(r.tiempoTotal / r.conteos)
-      }))
-      .sort((a, b) => a.tiempoPromedio - b.tiempoPromedio);
-
-    setRanking(rankingFinal);
     setVerHistorial(true);
   }
 
@@ -583,7 +645,7 @@ export default function App() {
 
     const ordenados = ORDEN_RESULTADOS
       .map((id) => (data || []).find((item) => item.sku_codigo === id))
-      .filter((item) => !!item);
+      .filter(Boolean);
 
     setConteoHistorialActual(conteo);
     setDetalleItemsHistorial(ordenados);
@@ -594,6 +656,7 @@ export default function App() {
   async function editarConteo(conteo) {
     setTransporte(conteo.transporte || "");
     setPlaca(conteo.placa || "");
+    setConductores(conteo.conductores || "");
     setResponsable(conteo.responsable || "");
     setTiempo(conteo.tiempo_conteo || 0);
     setCronometroActivo(false);
@@ -609,26 +672,15 @@ export default function App() {
       return;
     }
 
-    const nuevoDetalle = {};
-    (data || []).forEach((item) => {
-      nuevoDetalle[item.sku_codigo] = {
-        sku_codigo: item.sku_codigo,
-        descripcion: item.descripcion,
-        cajas: item.cajas || 0,
-        botellas_mas: item.botellas_mas || 0,
-        botellas_menos: item.botellas_menos || 0,
-        total_botellas: item.total_botellas || 0
-      };
-    });
-
-    setDetalleConteo(nuevoDetalle);
-
+    let detalleTextos = {};
     const meta = localStorage.getItem(metaKey(conteo.id));
+
     if (meta) {
       try {
         const parsed = JSON.parse(meta);
         setProductos(parsed.productos || []);
         setPfnItems(parsed.pfnItems || []);
+        detalleTextos = parsed.detalleTextos || {};
       } catch {
         setProductos([]);
         setPfnItems([]);
@@ -638,6 +690,20 @@ export default function App() {
       setPfnItems([]);
     }
 
+    const nuevoDetalle = {};
+    (data || []).forEach((item) => {
+      nuevoDetalle[item.sku_codigo] = {
+        sku_codigo: item.sku_codigo,
+        descripcion: item.descripcion,
+        cajas: item.cajas || 0,
+        cajas_texto: detalleTextos[item.sku_codigo] || "",
+        botellas_mas: item.botellas_mas || 0,
+        botellas_menos: item.botellas_menos || 0,
+        total_botellas: item.total_botellas || 0
+      };
+    });
+
+    setDetalleConteo(nuevoDetalle);
     setVerHistorial(false);
     setDetalleModal(false);
 
@@ -656,15 +722,17 @@ export default function App() {
     if (!sku) return;
 
     setTimeout(() => {
+      const actual = detalleConteo[item.sku_codigo];
+
       if (ENVASES.some((e) => e.id === item.sku_codigo)) {
         setModalInicial({
-          cajas: item.cajas || 0,
-          mas: item.botellas_mas || 0,
-          menos: item.botellas_menos || 0
+          cajas: actual?.cajas_texto || "",
+          mas: actual?.botellas_mas || "",
+          menos: actual?.botellas_menos || ""
         });
       } else {
         setModalInicial({
-          cantidad: item.cajas || 0
+          cantidad: actual?.cajas || item.cajas || ""
         });
       }
 
@@ -752,15 +820,27 @@ export default function App() {
     const pdf = new jsPDF("p", "mm", "a4");
 
     const pageWidth = pdf.internal.pageSize.getWidth();
-    const margin = 10;
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const margin = 8;
     const usableWidth = pageWidth - margin * 2;
-    const imgHeight = (canvas.height * usableWidth) / canvas.width;
+    const usableHeight = pageHeight - 16;
+    const rawHeight = (canvas.height * usableWidth) / canvas.width;
+
+    let finalWidth = usableWidth;
+    let finalHeight = rawHeight;
+
+    if (rawHeight > usableHeight) {
+      const ratio = usableHeight / rawHeight;
+      finalHeight = usableHeight;
+      finalWidth = usableWidth * ratio;
+    }
 
     pdf.setDrawColor(255, 214, 10);
     pdf.setLineWidth(1.2);
-    pdf.rect(5, 5, pageWidth - 10, pdf.internal.pageSize.getHeight() - 10);
+    pdf.rect(4, 4, pageWidth - 8, pageHeight - 8);
 
-    pdf.addImage(imgData, "PNG", margin, 12, usableWidth, imgHeight);
+    const x = (pageWidth - finalWidth) / 2;
+    pdf.addImage(imgData, "PNG", x, 8, finalWidth, finalHeight);
     pdf.save(`conteo_${conteo.placa || conteo.id}.pdf`);
 
     document.body.removeChild(contenedor);
@@ -769,7 +849,7 @@ export default function App() {
   function construirResumenExportable(conteo, detalleData, productosHist, pfnHist) {
     const ordenados = ORDEN_RESULTADOS
       .map((id) => (detalleData || []).find((item) => item.sku_codigo === id))
-      .filter((item) => !!item);
+      .filter(Boolean);
 
     const env330 = ordenados.filter((item) =>
       ["330_VERDE", "330_AMBAR", "330_FLINT"].includes(item.sku_codigo)
@@ -787,50 +867,59 @@ export default function App() {
       ["PALETA_11", "PALETA_12", "CAJA_BEES"].includes(item.sku_codigo)
     );
 
-    const cajas330 = env330.reduce((acc, item) => acc + (item.cajas || 0), 0) +
+    const cajas330 =
+      env330.reduce((acc, item) => acc + (item.cajas || 0), 0) +
       (ordenados.find((i) => i.sku_codigo === "JABA_330")?.cajas || 0);
-    const cajas11 = env11.reduce((acc, item) => acc + (item.cajas || 0), 0) +
+
+    const cajas11 =
+      env11.reduce((acc, item) => acc + (item.cajas || 0), 0) +
       (ordenados.find((i) => i.sku_codigo === "JABA_11")?.cajas || 0);
-    const cajas1000 = env1000.reduce((acc, item) => acc + (item.cajas || 0), 0) +
+
+    const cajas1000 =
+      env1000.reduce((acc, item) => acc + (item.cajas || 0), 0) +
       (ordenados.find((i) => i.sku_codigo === "JABA_1000")?.cajas || 0);
 
     const box = document.createElement("div");
     box.style.position = "fixed";
     box.style.left = "-99999px";
     box.style.top = "0";
-    box.style.width = "900px";
+    box.style.width = "820px";
     box.style.background = "#fffef5";
-    box.style.padding = "24px";
+    box.style.padding = "16px";
     box.style.fontFamily = "Arial";
     box.style.color = "#111";
 
     const fecha = conteo.fecha ? new Date(conteo.fecha).toLocaleDateString() : "";
 
     box.innerHTML = `
-      <div style="border:3px solid #ffd60a;border-radius:18px;padding:20px;background:#fffef5;">
-        <div style="background:#ffd60a;padding:14px 16px;border-radius:12px;font-size:28px;font-weight:bold;margin-bottom:18px;">
+      <div style="border:3px solid #ffd60a;border-radius:16px;padding:14px;background:#fffef5;">
+        <div style="background:#ffd60a;padding:10px 14px;border-radius:10px;font-size:24px;font-weight:bold;margin-bottom:12px;">
           Conteo Ciego
         </div>
 
-        <div style="font-size:20px;font-weight:bold;line-height:1.8;margin-bottom:16px;">
+        <div style="font-size:16px;font-weight:bold;line-height:1.55;margin-bottom:10px;">
           <div>Fecha: ${fecha}</div>
           <div>Placa: ${conteo.placa || ""}</div>
           <div>Transporte: ${conteo.transporte || ""}</div>
+          <div>Conductor: ${conteo.conductores || ""}</div>
           <div>Responsable: ${conteo.responsable || ""}</div>
         </div>
 
-        ${bloqueHTML("Envases 330", env330.map(i => `${i.descripcion} → ${i.total_botellas} botellas`))}
-        ${bloqueHTML("Envases 550 / 600", env11.map(i => `${i.descripcion} → ${i.total_botellas} botellas`))}
-        ${bloqueHTML("Envases 850 / 1000", env1000.map(i => `${i.descripcion} → ${i.total_botellas} botellas`))}
-        ${bloqueHTML("Jabas vacías", jabas.map(i => `${i.descripcion} → ${i.cajas} cajas`))}
-        ${bloqueHTML("Cajas", [
-          cajas330 > 0 ? `Total de Jabas 330 → ${cajas330}` : null,
-          cajas11 > 0 ? `Total de Jabas 1/1 → ${cajas11}` : null,
-          cajas1000 > 0 ? `Total de Jabas 1000 → ${cajas1000}` : null
-        ].filter(Boolean))}
-        ${bloqueHTML("Activos", activos.map(i => `${i.descripcion} → ${i.cajas}`))}
-        ${bloqueHTML("Producto", productosHist.map(i => `${i.nombre} → ${i.cantidad}`))}
-        ${bloqueHTML("PFN", pfnHist.map(i => `${i.nombre} → ${i.cantidad}`))}
+        ${bloqueHTML("Producto", productosHist.map((i) => `${i.nombre} → ${i.cantidad}`))}
+        ${bloqueHTML("PFN", pfnHist.map((i) => `${i.nombre} → ${i.cantidad}`))}
+        ${bloqueHTML("Envases 330", env330.map((i) => `${i.descripcion} → ${i.total_botellas} botellas`))}
+        ${bloqueHTML("Envases 550 / 600", env11.map((i) => `${i.descripcion} → ${i.total_botellas} botellas`))}
+        ${bloqueHTML("Envases 850 / 1000", env1000.map((i) => `${i.descripcion} → ${i.total_botellas} botellas`))}
+        ${bloqueHTML("Jabas vacías", jabas.map((i) => `${i.descripcion} → ${i.cajas} cajas`))}
+        ${bloqueHTML(
+          "Cajas",
+          [
+            cajas330 > 0 ? `Total de Jabas 330 → ${cajas330}` : null,
+            cajas11 > 0 ? `Total de Jabas 1/1 → ${cajas11}` : null,
+            cajas1000 > 0 ? `Total de Jabas 1000 → ${cajas1000}` : null
+          ].filter(Boolean)
+        )}
+        ${bloqueHTML("Activos", activos.map((i) => `${i.descripcion} → ${i.cajas}`))}
       </div>
     `;
 
@@ -840,14 +929,14 @@ export default function App() {
   function bloqueHTML(titulo, lineas) {
     if (!lineas || lineas.length === 0) return "";
     return `
-      <div style="margin-top:16px;">
-        <div style="font-size:22px;font-weight:bold;background:#fff3bf;padding:8px 10px;border-radius:10px;margin-bottom:8px;">
+      <div style="margin-top:10px;">
+        <div style="font-size:18px;font-weight:bold;background:#fff3bf;padding:6px 8px;border-radius:8px;margin-bottom:6px;">
           ${titulo}
         </div>
         ${lineas
           .map(
             (l) => `
-          <div style="font-size:20px;font-weight:bold;padding:8px 6px;border-bottom:1px solid #eee;">
+          <div style="font-size:15px;font-weight:bold;padding:6px 4px;border-bottom:1px solid #eee;line-height:1.3;">
             ${l}
           </div>
         `
@@ -857,14 +946,130 @@ export default function App() {
     `;
   }
 
+  async function cargarDashboard() {
+    const { data, error } = await supabase
+      .from("conteos")
+      .select("id, responsable, tiempo_conteo, fecha")
+      .order("fecha", { ascending: false });
+
+    if (error) {
+      console.log("Error cargando dashboard:", error);
+      return;
+    }
+
+    const lista = (data || []).map((item) => ({
+      ...item,
+      fechaObj: item.fecha ? new Date(item.fecha) : new Date()
+    }));
+
+    const ahora = new Date();
+    const inicioDia = inicioDelDia(ahora);
+    const finalDia = finDelDia(ahora);
+    const inicioMesActual = inicioDelMes(ahora);
+    const finalMesActual = finDelMes(ahora);
+
+    const inicioMesAnterior = inicioDelMes(new Date(ahora.getFullYear(), ahora.getMonth() - 1, 1));
+    const finalMesAnterior = finDelMes(new Date(ahora.getFullYear(), ahora.getMonth() - 1, 1));
+
+    const delDia = lista.filter((c) => c.fechaObj >= inicioDia && c.fechaObj <= finalDia);
+    const delMes = lista.filter((c) => c.fechaObj >= inicioMesActual && c.fechaObj <= finalMesActual);
+    const delMesAnterior = lista.filter(
+      (c) => c.fechaObj >= inicioMesAnterior && c.fechaObj <= finalMesAnterior
+    );
+
+    const resumen = {};
+    delMes.forEach((c) => {
+      if (!c.responsable) return;
+
+      if (!resumen[c.responsable]) {
+        resumen[c.responsable] = {
+          nombre: c.responsable,
+          conteos: 0,
+          tiempoTotal: 0
+        };
+      }
+
+      resumen[c.responsable].conteos += 1;
+      resumen[c.responsable].tiempoTotal += c.tiempo_conteo || 0;
+    });
+
+    const ranking = Object.values(resumen)
+      .map((r) => {
+        const tiempoPromedio = r.conteos ? Math.round(r.tiempoTotal / r.conteos) : 0;
+        const horas = r.tiempoTotal / 3600;
+        const carrosPorHora = horas > 0 ? Number((r.conteos / horas).toFixed(2)) : r.conteos;
+
+        return {
+          nombre: r.nombre,
+          conteos: r.conteos,
+          tiempoPromedio,
+          carrosPorHora
+        };
+      })
+      .sort((a, b) => {
+        if (b.conteos !== a.conteos) return b.conteos - a.conteos;
+        return a.tiempoPromedio - b.tiempoPromedio;
+      });
+
+    const horasMap = {};
+    delMes.forEach((c) => {
+      const hora = c.fechaObj.getHours();
+      if (!horasMap[hora]) horasMap[hora] = 0;
+      horasMap[hora] += 1;
+    });
+
+    const porHora = Array.from({ length: 24 }, (_, h) => ({
+      hora: `${String(h).padStart(2, "0")}:00`,
+      total: horasMap[h] || 0
+    })).filter((x) => x.total > 0);
+
+    const diasMap = {};
+    delMes.forEach((c) => {
+      const dia = c.fechaObj.getDate();
+      if (!diasMap[dia]) diasMap[dia] = 0;
+      diasMap[dia] += 1;
+    });
+
+    const porDiaDelMes = Object.keys(diasMap)
+      .map((dia) => ({
+        dia: Number(dia),
+        total: diasMap[dia]
+      }))
+      .sort((a, b) => a.dia - b.dia);
+
+    setDashboardData({
+      totalDia: delDia.length,
+      totalMes: delMes.length,
+      totalMesAnterior: delMesAnterior.length,
+      ranking,
+      porHora,
+      porDiaDelMes
+    });
+  }
+
+  if (!appLista) {
+    return <div style={{ padding: 20, fontFamily: "Arial" }}>Cargando...</div>;
+  }
+
   return (
     <div style={pageStyle}>
       <div style={headerStyle}>
-        <h1 style={{ margin: 0 }}>Conteo Ciego</h1>
-        <div style={{ marginTop: 8, fontWeight: "bold", fontSize: 18 }}>
-          Tiempo {Math.floor(tiempo / 60)}m {tiempo % 60}s
-          {conteoEditando && <span style={{ marginLeft: 10 }}>· Editando conteo #{conteoEditando}</span>}
+        <div>
+          <h1 style={{ margin: 0 }}>Conteo Ciego</h1>
+          <div style={{ marginTop: 8, fontWeight: "bold", fontSize: 18 }}>
+            Tiempo {formatearTiempo(tiempo)}
+            {conteoEditando && (
+              <span style={{ marginLeft: 10 }}>· Editando conteo #{conteoEditando}</span>
+            )}
+          </div>
         </div>
+
+        <button
+          onClick={() => setDashboardVisible(true)}
+          style={{ ...primaryButtonStyle, minWidth: 160 }}
+        >
+          Ver Dashboard
+        </button>
       </div>
 
       <section style={cardStyle}>
@@ -881,13 +1086,20 @@ export default function App() {
           style={inputStyle}
         />
         <input
+          placeholder="Conductor"
+          value={conductores}
+          onChange={(e) => setConductores(e.target.value)}
+          style={inputStyle}
+        />
+        <input
           placeholder="Responsable"
           value={responsable}
           onChange={(e) => setResponsable(e.target.value)}
           style={inputStyle}
         />
       </section>
-<section style={cardStyle}>
+
+      <section style={cardStyle}>
         <h2>Producto</h2>
         <input
           placeholder="Nombre producto"
@@ -962,15 +1174,13 @@ export default function App() {
           </div>
         ))}
       </section>
+
       <section style={cardStyle}>
         <h2>Envases</h2>
         {ENVASES.map((sku) => (
           <button
             key={sku.id}
-            onClick={() => {
-              setSkuActivo(sku);
-              setModalInicial(null);
-            }}
+            onClick={() => abrirSkuDesdePrincipal(sku)}
             style={{
               ...chipStyle,
               background: detalleConteo[sku.id] ? "#d9f99d" : "#fff"
@@ -986,10 +1196,7 @@ export default function App() {
         {JABAS.map((sku) => (
           <button
             key={sku.id}
-            onClick={() => {
-              setSkuActivo(sku);
-              setModalInicial(null);
-            }}
+            onClick={() => abrirSkuDesdePrincipal(sku)}
             style={{
               ...chipStyle,
               background: detalleConteo[sku.id] ? "#d9f99d" : "#fff"
@@ -1005,10 +1212,7 @@ export default function App() {
         {ACTIVOS.map((sku) => (
           <button
             key={sku.id}
-            onClick={() => {
-              setSkuActivo(sku);
-              setModalInicial(null);
-            }}
+            onClick={() => abrirSkuDesdePrincipal(sku)}
             style={{
               ...chipStyle,
               background: detalleConteo[sku.id] ? "#d9f99d" : "#fff"
@@ -1022,68 +1226,8 @@ export default function App() {
       <section ref={exportRef} style={cardStyle}>
         <h2>Resultados</h2>
 
-        {envases330.length > 0 && (
-          <>
-            <h3>Envases 330</h3>
-            {envases330.map((item) =>
-              renderLineaResultado(item, "botellas", () => abrirEditarSkuActual(item.sku_codigo))
-            )}
-          </>
-        )}
-
-        {envases11.length > 0 && (
-          <>
-            <h3>Envases 550 / 600</h3>
-            {envases11.map((item) =>
-              renderLineaResultado(item, "botellas", () => abrirEditarSkuActual(item.sku_codigo))
-            )}
-          </>
-        )}
-
-        {envases1000.length > 0 && (
-          <>
-            <h3>Envases 850 / 1000</h3>
-            {envases1000.map((item) =>
-              renderLineaResultado(item, "botellas", () => abrirEditarSkuActual(item.sku_codigo))
-            )}
-          </>
-        )}
-
-        {jabasVacias.length > 0 && (
-          <>
-            <div style={{ borderTop: "2px solid #eee", margin: "12px 0" }} />
-            <h3>Jabas vacías</h3>
-            {jabasVacias.map((item) =>
-              renderLineaResultado(item, "cajas", () => abrirEditarSkuActual(item.sku_codigo))
-            )}
-          </>
-        )}
-
-        {(totalJabas330 || totalJabas11 || totalJabas1000) && (
-          <>
-            <div style={{ borderTop: "2px solid #eee", margin: "12px 0" }} />
-            <h3>Cajas</h3>
-            {totalJabas330 > 0 && renderLineaSimple("Total de Jabas 330", totalJabas330)}
-            {totalJabas11 > 0 && renderLineaSimple("Total de Jabas 1/1", totalJabas11)}
-            {totalJabas1000 > 0 && renderLineaSimple("Total de Jabas 1000", totalJabas1000)}
-          </>
-        )}
-
-        {activosResultado.length > 0 && (
-          <>
-            <div style={{ borderTop: "2px solid #eee", margin: "12px 0" }} />
-            <h3>Activos</h3>
-            {activosResultado.map((item) =>
-              renderLineaSimple(item.descripcion, item.cajas, () =>
-                abrirEditarSkuActual(item.sku_codigo)
-              )
-            )}
-          </>
-        )}
-
         {productos.length > 0 && (
           <>
-            <div style={{ borderTop: "2px solid #eee", margin: "12px 0" }} />
             <h3>Producto</h3>
             {productos.map((p) => renderLineaSimple(p.nombre, p.cantidad))}
           </>
@@ -1094,6 +1238,65 @@ export default function App() {
             <div style={{ borderTop: "2px solid #eee", margin: "12px 0" }} />
             <h3>PFN</h3>
             {pfnItems.map((p) => renderLineaSimple(p.nombre, p.cantidad))}
+          </>
+        )}
+
+        {(envases330.length > 0 || envases11.length > 0 || envases1000.length > 0) && (
+          <>
+            <div style={{ borderTop: "2px solid #eee", margin: "12px 0" }} />
+            <h3>Envases</h3>
+
+            {envases330.length > 0 && (
+              <>
+                <h4>Envases 330</h4>
+                {envases330.map((item) => renderLineaResultado(item, "botellas"))}
+              </>
+            )}
+
+            {envases11.length > 0 && (
+              <>
+                <h4>Envases 550 / 600</h4>
+                {envases11.map((item) => renderLineaResultado(item, "botellas"))}
+              </>
+            )}
+
+            {envases1000.length > 0 && (
+              <>
+                <h4>Envases 850 / 1000</h4>
+                {envases1000.map((item) => renderLineaResultado(item, "botellas"))}
+              </>
+            )}
+          </>
+        )}
+
+        {(jabasVacias.length > 0 || totalJabas330 || totalJabas11 || totalJabas1000) && (
+          <>
+            <div style={{ borderTop: "2px solid #eee", margin: "12px 0" }} />
+            <h3>Jabas vacías / Cajas</h3>
+
+            {jabasVacias.length > 0 && (
+              <>
+                <h4>Jabas vacías</h4>
+                {jabasVacias.map((item) => renderLineaResultado(item, "cajas"))}
+              </>
+            )}
+
+            {(totalJabas330 || totalJabas11 || totalJabas1000) && (
+              <>
+                <h4>Cajas</h4>
+                {totalJabas330 > 0 && renderLineaSimple("Total de Jabas 330", totalJabas330)}
+                {totalJabas11 > 0 && renderLineaSimple("Total de Jabas 1/1", totalJabas11)}
+                {totalJabas1000 > 0 && renderLineaSimple("Total de Jabas 1000", totalJabas1000)}
+              </>
+            )}
+          </>
+        )}
+
+        {activosResultado.length > 0 && (
+          <>
+            <div style={{ borderTop: "2px solid #eee", margin: "12px 0" }} />
+            <h3>Activos</h3>
+            {activosResultado.map((item) => renderLineaSimple(item.descripcion, item.cajas))}
           </>
         )}
       </section>
@@ -1110,31 +1313,15 @@ export default function App() {
 
       {verHistorial && (
         <section style={{ ...cardStyle, marginTop: 20 }}>
-          <h2>Ranking de Controladores</h2>
-          {ranking.map((r, i) => (
-            <div
-              key={i}
-              style={{
-                padding: 8,
-                borderRadius: 8,
-                background: i === 0 ? "#ffe066" : "transparent",
-                fontSize: 18,
-                fontWeight: "bold"
-              }}
-            >
-              {i + 1}. {r.nombre} — {r.conteos} carros — {Math.floor(r.tiempoPromedio / 60)}m{" "}
-              {r.tiempoPromedio % 60}s promedio
-            </div>
-          ))}
+          <h2>Historial de Conteos</h2>
 
-          <h2 style={{ marginTop: 20 }}>Historial de Conteos</h2>
           {historial.map((c) => (
             <div key={c.id} style={historyItemStyle}>
               <div style={{ fontSize: 20, fontWeight: "bold" }}>Conteo #{c.id}</div>
               <div>Transporte: {c.transporte}</div>
               <div>Placa: {c.placa}</div>
+              <div>Conductor: {c.conductores}</div>
               <div>Responsable: {c.responsable}</div>
-              <div>Total Botellas: {c.total_botellas}</div>
 
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
                 <button onClick={() => editarConteo(c)} style={miniButtonStyle}>
@@ -1154,251 +1341,261 @@ export default function App() {
           ))}
         </section>
       )}
-{detalleModal && (
-  <div style={overlayStyle}>
-    <div
-      style={{
-        ...modalStyle,
-        width: 430,
-        maxHeight: "85vh",
-        padding: 22
-      }}
-    >
-      <h2 style={{ marginTop: 0, fontSize: 28 }}>Detalle del Historial</h2>
- 
-      {(() => {
-        const meta = conteoHistorialActual
-          ? localStorage.getItem(metaKey(conteoHistorialActual.id))
-          : null;
- 
-        let productosHist = [];
-        let pfnHist = [];
- 
-        if (meta) {
-          try {
-            const parsed = JSON.parse(meta);
-            productosHist = parsed.productos || [];
-            pfnHist = parsed.pfnItems || [];
-          } catch {
-            productosHist = [];
-            pfnHist = [];
-          }
-        }
- 
-        const envases330Hist = detalleItemsHistorial.filter((d) =>
-          ["330_VERDE", "330_AMBAR", "330_FLINT"].includes(d.sku_codigo)
-        );
- 
-        const envases11Hist = detalleItemsHistorial.filter((d) =>
-          ["550_VERDE", "550_FLINT", "550_AMBAR", "600_AMBAR"].includes(d.sku_codigo)
-        );
- 
-        const envases1000Hist = detalleItemsHistorial.filter((d) =>
-          ["850_VERDE", "1000_AMBAR", "1000_FLINT"].includes(d.sku_codigo)
-        );
- 
-        const jabasHist = detalleItemsHistorial.filter((d) =>
-          ["JABA_330", "JABA_11", "JABA_1000"].includes(d.sku_codigo)
-        );
- 
-        const activosHist = detalleItemsHistorial.filter((d) =>
-          ["PALETA_11", "PALETA_12", "CAJA_BEES"].includes(d.sku_codigo)
-        );
- 
-        const totalJabas330Hist =
-          envases330Hist.reduce((acc, d) => acc + (d.cajas || 0), 0) +
-          (jabasHist.find((d) => d.sku_codigo === "JABA_330")?.cajas || 0);
- 
-        const totalJabas11Hist =
-          envases11Hist.reduce((acc, d) => acc + (d.cajas || 0), 0) +
-          (jabasHist.find((d) => d.sku_codigo === "JABA_11")?.cajas || 0);
- 
-        const totalJabas1000Hist =
-          envases1000Hist.reduce((acc, d) => acc + (d.cajas || 0), 0) +
-          (jabasHist.find((d) => d.sku_codigo === "JABA_1000")?.cajas || 0);
- 
-        function estiloSeleccionable(key) {
-          return {
-            fontSize: 22,
-            fontWeight: "bold",
-            marginBottom: 10,
-            padding: 12,
-            borderRadius: 12,
-            cursor: "pointer",
-            background: marcadosHistorial[key] ? "#b6f5b6" : "#fff",
-            border: "1px solid #eee",
-            lineHeight: 1.35
-          };
-        }
- 
-        function renderFilaHistorial(key, texto, onEdit = null) {
-          return (
-            <div
-              key={key}
-              onClick={() => marcarHistorial(key)}
-              style={estiloSeleccionable(key)}
+
+      {detalleModal && (
+        <div style={overlayStyle}>
+          <div
+            style={{
+              ...modalStyle,
+              width: 460,
+              maxHeight: "85vh",
+              padding: 22
+            }}
+          >
+            <h2 style={{ marginTop: 0, fontSize: 28 }}>Detalle del Historial</h2>
+
+            {(() => {
+              const meta = conteoHistorialActual
+                ? localStorage.getItem(metaKey(conteoHistorialActual.id))
+                : null;
+
+              let productosHist = [];
+              let pfnHist = [];
+
+              if (meta) {
+                try {
+                  const parsed = JSON.parse(meta);
+                  productosHist = parsed.productos || [];
+                  pfnHist = parsed.pfnItems || [];
+                } catch {
+                  productosHist = [];
+                  pfnHist = [];
+                }
+              }
+
+              const envases330Hist = detalleItemsHistorial.filter((d) =>
+                ["330_VERDE", "330_AMBAR", "330_FLINT"].includes(d.sku_codigo)
+              );
+
+              const envases11Hist = detalleItemsHistorial.filter((d) =>
+                ["550_VERDE", "550_FLINT", "550_AMBAR", "600_AMBAR"].includes(d.sku_codigo)
+              );
+
+              const envases1000Hist = detalleItemsHistorial.filter((d) =>
+                ["850_VERDE", "1000_AMBAR", "1000_FLINT"].includes(d.sku_codigo)
+              );
+
+              const jabasHist = detalleItemsHistorial.filter((d) =>
+                ["JABA_330", "JABA_11", "JABA_1000"].includes(d.sku_codigo)
+              );
+
+              const activosHist = detalleItemsHistorial.filter((d) =>
+                ["PALETA_11", "PALETA_12", "CAJA_BEES"].includes(d.sku_codigo)
+              );
+
+              const totalJabas330Hist =
+                envases330Hist.reduce((acc, d) => acc + (d.cajas || 0), 0) +
+                (jabasHist.find((d) => d.sku_codigo === "JABA_330")?.cajas || 0);
+
+              const totalJabas11Hist =
+                envases11Hist.reduce((acc, d) => acc + (d.cajas || 0), 0) +
+                (jabasHist.find((d) => d.sku_codigo === "JABA_11")?.cajas || 0);
+
+              const totalJabas1000Hist =
+                envases1000Hist.reduce((acc, d) => acc + (d.cajas || 0), 0) +
+                (jabasHist.find((d) => d.sku_codigo === "JABA_1000")?.cajas || 0);
+
+              function estiloSeleccionable(key) {
+                return {
+                  fontSize: 22,
+                  fontWeight: "bold",
+                  marginBottom: 10,
+                  padding: 12,
+                  borderRadius: 12,
+                  cursor: "pointer",
+                  background: marcadosHistorial[key] ? "#b6f5b6" : "#fff",
+                  border: "1px solid #eee",
+                  lineHeight: 1.35
+                };
+              }
+
+              function renderFilaHistorial(key, texto, onEdit = null) {
+                return (
+                  <div
+                    key={key}
+                    onClick={() => marcarHistorial(key)}
+                    style={estiloSeleccionable(key)}
+                  >
+                    <div>{texto}</div>
+
+                    {onEdit && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onEdit();
+                        }}
+                        style={{
+                          ...miniButtonStyle,
+                          marginTop: 10,
+                          fontSize: 16,
+                          padding: "10px 12px"
+                        }}
+                      >
+                        Modificar
+                      </button>
+                    )}
+                  </div>
+                );
+              }
+
+              return (
+                <>
+                  {productosHist.length > 0 && (
+                    <>
+                      <h3 style={{ fontSize: 24, marginBottom: 12 }}>Producto</h3>
+                      {productosHist.map((p, i) =>
+                        renderFilaHistorial(
+                          `producto_${p.nombre}_${i}`,
+                          `${p.nombre} → ${p.cantidad}`,
+                          () => {
+                            setNombreProducto(p.nombre);
+                            setCantidadProducto(String(p.cantidad));
+                            setProductoEditando(i);
+                            setDetalleModal(false);
+                          }
+                        )
+                      )}
+                    </>
+                  )}
+
+                  {pfnHist.length > 0 && (
+                    <>
+                      <div style={{ borderTop: "2px solid #eee", margin: "14px 0" }} />
+                      <h3 style={{ fontSize: 24, marginBottom: 12 }}>PFN</h3>
+                      {pfnHist.map((p, i) =>
+                        renderFilaHistorial(
+                          `pfn_${p.nombre}_${i}`,
+                          `${p.nombre} → ${p.cantidad}`,
+                          () => {
+                            setNombrePfn(p.nombre);
+                            setCantidadPfn(String(p.cantidad));
+                            setPfnEditando(i);
+                            setDetalleModal(false);
+                          }
+                        )
+                      )}
+                    </>
+                  )}
+
+                  {(envases330Hist.length > 0 ||
+                    envases11Hist.length > 0 ||
+                    envases1000Hist.length > 0) && (
+                    <>
+                      <div style={{ borderTop: "2px solid #eee", margin: "14px 0" }} />
+                      <h3 style={{ fontSize: 24, marginBottom: 12 }}>Envases</h3>
+
+                      {envases330Hist.map((d) =>
+                        renderFilaHistorial(
+                          d.descripcion,
+                          `${d.descripcion} → ${d.total_botellas} botellas`,
+                          () => editarSkuDesdeHistorial(d)
+                        )
+                      )}
+
+                      {envases11Hist.map((d) =>
+                        renderFilaHistorial(
+                          d.descripcion,
+                          `${d.descripcion} → ${d.total_botellas} botellas`,
+                          () => editarSkuDesdeHistorial(d)
+                        )
+                      )}
+
+                      {envases1000Hist.map((d) =>
+                        renderFilaHistorial(
+                          d.descripcion,
+                          `${d.descripcion} → ${d.total_botellas} botellas`,
+                          () => editarSkuDesdeHistorial(d)
+                        )
+                      )}
+                    </>
+                  )}
+
+                  {(jabasHist.length > 0 ||
+                    totalJabas330Hist > 0 ||
+                    totalJabas11Hist > 0 ||
+                    totalJabas1000Hist > 0) && (
+                    <>
+                      <div style={{ borderTop: "2px solid #eee", margin: "14px 0" }} />
+                      <h3 style={{ fontSize: 24, marginBottom: 12 }}>Jabas vacías / Cajas</h3>
+
+                      {jabasHist.map((d) =>
+                        renderFilaHistorial(
+                          d.descripcion,
+                          `${d.descripcion} → ${d.cajas} cajas`,
+                          () => editarSkuDesdeHistorial(d)
+                        )
+                      )}
+
+                      {totalJabas330Hist > 0 &&
+                        renderFilaHistorial(
+                          "total_jabas_330",
+                          `Total de Jabas 330 → ${totalJabas330Hist}`
+                        )}
+
+                      {totalJabas11Hist > 0 &&
+                        renderFilaHistorial(
+                          "total_jabas_11",
+                          `Total de Jabas 1/1 → ${totalJabas11Hist}`
+                        )}
+
+                      {totalJabas1000Hist > 0 &&
+                        renderFilaHistorial(
+                          "total_jabas_1000",
+                          `Total de Jabas 1000 → ${totalJabas1000Hist}`
+                        )}
+                    </>
+                  )}
+
+                  {activosHist.length > 0 && (
+                    <>
+                      <div style={{ borderTop: "2px solid #eee", margin: "14px 0" }} />
+                      <h3 style={{ fontSize: 24, marginBottom: 12 }}>Activos</h3>
+
+                      {activosHist.map((d) =>
+                        renderFilaHistorial(
+                          d.descripcion,
+                          `${d.descripcion} → ${d.cajas}`,
+                          () => editarSkuDesdeHistorial(d)
+                        )
+                      )}
+                    </>
+                  )}
+                </>
+              );
+            })()}
+
+            <button
+              onClick={() => setDetalleModal(false)}
+              style={{
+                ...primaryButtonStyle,
+                marginTop: 12,
+                fontSize: 18,
+                padding: "12px 18px"
+              }}
             >
-              <div>{texto}</div>
- 
-              {onEdit && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onEdit();
-                  }}
-                  style={{
-                    ...miniButtonStyle,
-                    marginTop: 10,
-                    fontSize: 16,
-                    padding: "10px 12px"
-                  }}
-                >
-                  Modificar SKU
-                </button>
-              )}
-            </div>
-          );
-        }
- 
-        return (
-          <>
-            {productosHist.length > 0 && (
-              <>
-                <h3 style={{ fontSize: 24, marginBottom: 12 }}>Producto</h3>
-                {productosHist.map((p, i) =>
-  renderFilaHistorial(
-    `producto_${p.nombre}_${i}`,
-    `${p.nombre} → ${p.cantidad}`,
-    () => {
-      setNombreProducto(p.nombre);
-      setCantidadProducto(String(p.cantidad));
-      setProductoEditando(i);
-      setDetalleModal(false);
-    }
-  )
-)}
-              </>
-            )}
- 
-            {pfnHist.length > 0 && (
-              <>
-                <div style={{ borderTop: "2px solid #eee", margin: "14px 0" }} />
-                <h3 style={{ fontSize: 24, marginBottom: 12 }}>PFN</h3>
-                {pfnHist.map((p, i) =>
-  renderFilaHistorial(
-    `pfn_${p.nombre}_${i}`,
-    `${p.nombre} → ${p.cantidad}`,
-    () => {
-      setNombrePfn(p.nombre);
-      setCantidadPfn(String(p.cantidad));
-      setPfnEditando(i);
-      setDetalleModal(false);
-    }
-  )
-)}
-              </>
-            )}
- 
-            {(envases330Hist.length > 0 ||
-              envases11Hist.length > 0 ||
-              envases1000Hist.length > 0 ||
-              jabasHist.length > 0) && (
-              <>
-                <div style={{ borderTop: "2px solid #eee", margin: "14px 0" }} />
-                <h3 style={{ fontSize: 24, marginBottom: 12 }}>Envases</h3>
- 
-                {envases330Hist.map((d) =>
-                  renderFilaHistorial(
-                    d.descripcion,
-                    `${d.descripcion} → ${d.total_botellas} botellas`,
-                    () => editarSkuDesdeHistorial(d)
-                  )
-                )}
- 
-                {envases11Hist.map((d) =>
-                  renderFilaHistorial(
-                    d.descripcion,
-                    `${d.descripcion} → ${d.total_botellas} botellas`,
-                    () => editarSkuDesdeHistorial(d)
-                  )
-                )}
- 
-                {envases1000Hist.map((d) =>
-                  renderFilaHistorial(
-                    d.descripcion,
-                    `${d.descripcion} → ${d.total_botellas} botellas`,
-                    () => editarSkuDesdeHistorial(d)
-                  )
-                )}
- 
-                {jabasHist.map((d) =>
-                  renderFilaHistorial(
-                    d.descripcion,
-                    `${d.descripcion} → ${d.cajas} cajas`,
-                    () => editarSkuDesdeHistorial(d)
-                  )
-                )}
-              </>
-            )}
- 
-            {(totalJabas330Hist > 0 || totalJabas11Hist > 0 || totalJabas1000Hist > 0) && (
-              <>
-                <div style={{ borderTop: "2px solid #eee", margin: "14px 0" }} />
-                <h3 style={{ fontSize: 24, marginBottom: 12 }}>Cajas</h3>
- 
-                {totalJabas330Hist > 0 &&
-                  renderFilaHistorial(
-                    "total_jabas_330",
-                    `Total de Jabas 330 → ${totalJabas330Hist}`
-                  )}
- 
-                {totalJabas11Hist > 0 &&
-                  renderFilaHistorial(
-                    "total_jabas_11",
-                    `Total de Jabas 1/1 → ${totalJabas11Hist}`
-                  )}
- 
-                {totalJabas1000Hist > 0 &&
-                  renderFilaHistorial(
-                    "total_jabas_1000",
-                    `Total de Jabas 1000 → ${totalJabas1000Hist}`
-                  )}
-              </>
-            )}
- 
-            {activosHist.length > 0 && (
-              <>
-                <div style={{ borderTop: "2px solid #eee", margin: "14px 0" }} />
-                <h3 style={{ fontSize: 24, marginBottom: 12 }}>Activos</h3>
- 
-                {activosHist.map((d) =>
-                  renderFilaHistorial(
-                    d.descripcion,
-                    `${d.descripcion} → ${d.cajas}`,
-                    () => editarSkuDesdeHistorial(d)
-                  )
-                )}
-              </>
-            )}
-          </>
-        );
-      })()}
- 
-      <button
-        onClick={() => setDetalleModal(false)}
-        style={{
-          ...primaryButtonStyle,
-          marginTop: 12,
-          fontSize: 18,
-          padding: "12px 18px"
-        }}
-      >
-        Cerrar
-      </button>
-    </div>
-  </div>
-)}
- 
+              Cerrar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {dashboardVisible && (
+        <DashboardModal
+          data={dashboardData}
+          onClose={() => setDashboardVisible(false)}
+        />
+      )}
+
       {skuActivo && (
         <QuickCountModal
           sku={skuActivo}
@@ -1408,8 +1605,130 @@ export default function App() {
           }}
           onSave={guardarSku}
           initialValues={modalInicial}
+          esEnvase={ENVASES.some((item) => item.id === skuActivo.id)}
         />
       )}
+    </div>
+  );
+}
+
+function DashboardModal({ data, onClose }) {
+  const maxRanking = Math.max(...data.ranking.map((x) => x.conteos), 1);
+  const maxHora = Math.max(...data.porHora.map((x) => x.total), 1);
+  const maxDia = Math.max(...data.porDiaDelMes.map((x) => x.total), 1);
+
+  return (
+    <div style={overlayStyle}>
+      <div style={dashboardModalStyle}>
+        <div style={dashboardHeaderStyle}>
+          <h2 style={{ margin: 0, color: "#fff" }}>Dashboard Conteo Ciego</h2>
+          <button onClick={onClose} style={dashboardCloseButtonStyle}>
+            Cerrar
+          </button>
+        </div>
+
+        <div style={dashboardCardsStyle}>
+          <div style={dashboardCardStyle}>
+            <div style={dashboardCardLabelStyle}>Carros del día</div>
+            <div style={dashboardCardValueStyle}>{data.totalDia}</div>
+          </div>
+
+          <div style={dashboardCardStyle}>
+            <div style={dashboardCardLabelStyle}>Carros del mes</div>
+            <div style={dashboardCardValueStyle}>{data.totalMes}</div>
+          </div>
+
+          <div style={dashboardCardStyle}>
+            <div style={dashboardCardLabelStyle}>Mes anterior</div>
+            <div style={dashboardCardValueStyle}>{data.totalMesAnterior}</div>
+          </div>
+        </div>
+
+        <div style={dashboardBodyStyle}>
+          <div style={dashboardLeftStyle}>
+            <div style={dashboardPanelStyle}>
+              <h3 style={dashboardPanelTitleStyle}>Ranking de controladores</h3>
+
+              {data.ranking.length === 0 ? (
+                <div style={{ color: "#fff" }}>Sin datos</div>
+              ) : (
+                data.ranking.map((item, index) => (
+                  <div key={item.nombre} style={rankingRowStyle}>
+                    <div style={{ minWidth: 28, color: "#ffd60a", fontWeight: "bold" }}>
+                      {index + 1}.
+                    </div>
+
+                    <div style={{ flex: 1 }}>
+                      <div style={{ color: "#fff", fontWeight: "bold" }}>{item.nombre}</div>
+                      <div style={{ color: "#ddd", fontSize: 13 }}>
+                        {item.conteos} carros · {formatearTiempo(item.tiempoPromedio)} promedio ·{" "}
+                        {item.carrosPorHora} carros/hora
+                      </div>
+
+                      <div style={barTrackStyle}>
+                        <div
+                          style={{
+                            ...barFillStyle,
+                            width: `${(item.conteos / maxRanking) * 100}%`
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          <div style={dashboardRightStyle}>
+            <div style={dashboardPanelStyle}>
+              <h3 style={dashboardPanelTitleStyle}>Carros por hora</h3>
+
+              {data.porHora.length === 0 ? (
+                <div style={{ color: "#fff" }}>Sin datos</div>
+              ) : (
+                data.porHora.map((item) => (
+                  <div key={item.hora} style={chartRowStyle}>
+                    <div style={chartLabelStyle}>{item.hora}</div>
+                    <div style={barTrackStyle}>
+                      <div
+                        style={{
+                          ...barFillStyle,
+                          width: `${(item.total / maxHora) * 100}%`
+                        }}
+                      />
+                    </div>
+                    <div style={chartValueStyle}>{item.total}</div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div style={dashboardPanelStyle}>
+              <h3 style={dashboardPanelTitleStyle}>Carros por día del mes</h3>
+
+              {data.porDiaDelMes.length === 0 ? (
+                <div style={{ color: "#fff" }}>Sin datos</div>
+              ) : (
+                data.porDiaDelMes.map((item) => (
+                  <div key={item.dia} style={chartRowStyle}>
+                    <div style={chartLabelStyle}>Día {item.dia}</div>
+                    <div style={barTrackStyle}>
+                      <div
+                        style={{
+                          ...barFillStyle,
+                          width: `${(item.total / maxDia) * 100}%`
+                        }}
+                      />
+                    </div>
+                    <div style={chartValueStyle}>{item.total}</div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1425,7 +1744,12 @@ const headerStyle = {
   background: "#ffd60a",
   padding: 16,
   borderRadius: 16,
-  marginBottom: 16
+  marginBottom: 16,
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: 12,
+  flexWrap: "wrap"
 };
 
 const cardStyle = {
@@ -1520,4 +1844,127 @@ const modalStyle = {
   padding: 20
 };
 
+const dashboardModalStyle = {
+  width: "95vw",
+  maxWidth: 1200,
+  maxHeight: "92vh",
+  overflow: "auto",
+  background: "#0f0f10",
+  borderRadius: 18,
+  padding: 18,
+  border: "2px solid #ffd60a"
+};
 
+const dashboardHeaderStyle = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  marginBottom: 16,
+  gap: 10,
+  flexWrap: "wrap"
+};
+
+const dashboardCloseButtonStyle = {
+  padding: "10px 14px",
+  borderRadius: 10,
+  border: "none",
+  background: "#ffd60a",
+  fontWeight: "bold",
+  cursor: "pointer"
+};
+
+const dashboardCardsStyle = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+  gap: 12,
+  marginBottom: 16
+};
+
+const dashboardCardStyle = {
+  background: "#1b1b1d",
+  border: "1px solid #333",
+  borderRadius: 14,
+  padding: 14
+};
+
+const dashboardCardLabelStyle = {
+  color: "#ffd60a",
+  fontSize: 14,
+  marginBottom: 6,
+  fontWeight: "bold"
+};
+
+const dashboardCardValueStyle = {
+  color: "#fff",
+  fontSize: 28,
+  fontWeight: "bold"
+};
+
+const dashboardBodyStyle = {
+  display: "grid",
+  gridTemplateColumns: "1.1fr 1fr",
+  gap: 14
+};
+
+const dashboardLeftStyle = {
+  minWidth: 0
+};
+
+const dashboardRightStyle = {
+  minWidth: 0,
+  display: "grid",
+  gap: 14
+};
+
+const dashboardPanelStyle = {
+  background: "#151517",
+  border: "1px solid #333",
+  borderRadius: 14,
+  padding: 14
+};
+
+const dashboardPanelTitleStyle = {
+  marginTop: 0,
+  marginBottom: 14,
+  color: "#ffd60a"
+};
+
+const rankingRowStyle = {
+  display: "flex",
+  alignItems: "flex-start",
+  gap: 10,
+  marginBottom: 12
+};
+
+const chartRowStyle = {
+  display: "grid",
+  gridTemplateColumns: "80px 1fr 40px",
+  gap: 10,
+  alignItems: "center",
+  marginBottom: 10
+};
+
+const chartLabelStyle = {
+  color: "#fff",
+  fontSize: 13
+};
+
+const chartValueStyle = {
+  color: "#fff",
+  fontWeight: "bold",
+  textAlign: "right"
+};
+
+const barTrackStyle = {
+  width: "100%",
+  height: 12,
+  borderRadius: 999,
+  background: "#2b2b2e",
+  overflow: "hidden"
+};
+
+const barFillStyle = {
+  height: "100%",
+  borderRadius: 999,
+  background: "#ffd60a"
+};
