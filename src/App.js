@@ -122,6 +122,8 @@ export default function App() {
   const [detalleModal, setDetalleModal] = useState(false);
   const [detalleItemsHistorial, setDetalleItemsHistorial] = useState([]);
   const [conteoHistorialActual, setConteoHistorialActual] = useState(null);
+  const [marcadosHistorial, setMarcadosHistorial] = useState({});
+ 
 
   const [dashboardVisible, setDashboardVisible] = useState(false);
   const [dashboardData, setDashboardData] = useState({
@@ -386,7 +388,12 @@ export default function App() {
       [nombre]: !prev[nombre]
     }));
   }
-
+function marcarHistorial(key) {
+  setMarcadosHistorial((prev) => ({
+    ...prev,
+    [key]: !prev[key]
+  }));
+}
   function renderLineaResultado(item, unidad) {
     const valor = unidad === "botellas" ? item.total_botellas : item.cajas;
 
@@ -1064,12 +1071,15 @@ export default function App() {
       </div>
 
       <section style={cardStyle}>
-        <input
-          placeholder="Transporte"
-          value={transporte}
-          onChange={(e) => setTransporte(e.target.value)}
-          style={inputStyle}
-        />
+       <input
+  placeholder="Transporte"
+  value={transporte}
+  onChange={(e) => setTransporte(e.target.value)}
+  style={inputStyle}
+  type="tel"
+  inputMode="numeric"
+/>
+ 
         <input
           placeholder="Placa"
           value={placa}
@@ -1398,100 +1408,64 @@ export default function App() {
                 (jabasHist.find((d) => d.sku_codigo === "JABA_1000")?.cajas || 0);
 
               function renderFilaHistorial(key, texto, onEdit = null) {
-                const esProducto = key.startsWith("producto_");
-                const esPfn = key.startsWith("pfn_");
-                const esNormal = esProducto || esPfn;
-
-                const [nombre, valorRaw] = texto.split("→");
-                const valor = valorRaw?.trim() || "";
-
-                return (
-                  <div
-                    key={key}
-                    style={{
-                      marginBottom: 8,
-                      padding: 10,
-                      borderRadius: 10,
-                      background: "#fff",
-                      border: "1px solid #eee"
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        gap: 6
-                      }}
-                    >
-                      <div
-                        style={{
-                          flex: 1,
-                          minWidth: 0
-                        }}
-                      >
-                        {esNormal ? (
-                          <div
-                            style={{
-                              fontSize: 14,
-                              fontWeight: "700",
-                              lineHeight: 1.35,
-                              wordBreak: "break-word"
-                            }}
-                          >
-                            {texto}
-                          </div>
-                        ) : (
-                          <>
-                            <div
-                              style={{
-                                fontSize: 14,
-                                fontWeight: "700",
-                                whiteSpace: "nowrap",
-                                overflow: "hidden",
-                                textOverflow: "ellipsis"
-                              }}
-                            >
-                              {nombre}
-                            </div>
-
-                            <div
-                              style={{
-                                fontSize: 18,
-                                fontWeight: "900",
-                                lineHeight: 1.2
-                              }}
-                            >
-                              {valor}
-                            </div>
-                          </>
-                        )}
-                      </div>
-
-                      {onEdit && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onEdit();
-                          }}
-                          style={{
-                            padding: "4px 8px",
-                            fontSize: 11,
-                            borderRadius: 6,
-                            border: "1px solid #ccc",
-                            background: "#fff",
-                            whiteSpace: "nowrap",
-                            flexShrink: 0
-                          }}
-                        >
-                          Modificar
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              }
-
+  const [nombre, valorRaw] = texto.split("→");
+ 
+  let valor = valorRaw?.trim() || "";
+ 
+  valor = valor.replace("botellas", "").replace("cajas", "").trim();
+ const esParentesis =
+  nombre.toLowerCase().includes("330") ||
+  nombre.toLowerCase().includes("550") ||
+  nombre.toLowerCase().includes("600") ||
+  nombre.toLowerCase().includes("850") ||
+  nombre.toLowerCase().includes("1000") ||
+  nombre.toLowerCase().includes("paleta") ||
+  nombre.toLowerCase().includes("caja") ||
+  nombre.toLowerCase().includes("activo"); 
+  return (
+    <div
+      key={key}
+      onClick={() => marcarHistorial(key)}
+      style={{
+        marginBottom: 8,
+        padding: 10,
+        borderRadius: 10,
+        background: marcadosHistorial[key] ? "#b6f5b6" : "#fff",
+        border: "1px solid #eee",
+        cursor: "pointer"
+      }}
+    >
+      <div style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center"
+      }}>
+        <div style={{ fontWeight: "700" }}>
+          {nombre} ={" "}
+          <span style={{ fontWeight: "900" }}>
+          {esParentesis ? `(${valor})` : valor}
+                    </span>
+        </div>
+ 
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            if (onEdit) onEdit();
+          }}
+          style={{
+            padding: "4px 8px",
+            borderRadius: 6,
+            border: "1px solid #ccc",
+            background: "#fff"
+          }}
+        >
+          Modificar
+        </button>
+      </div>
+    </div>
+  );
+}
+ 
               return (
                 <>
                   {productosHist.length > 0 && (

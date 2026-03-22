@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
  
 export default function QuickCountModal({
   sku,
@@ -7,26 +7,29 @@ export default function QuickCountModal({
   initialValues,
   esEnvase
 }) {
-  // ⚠️ Hooks SIEMPRE arriba (no condicionales)
   const [cajas, setCajas] = useState("");
   const [mas, setMas] = useState("");
   const [menos, setMenos] = useState("");
   const [cantidad, setCantidad] = useState("");
  
-  // Cargar valores iniciales
   useEffect(() => {
     if (initialValues) {
       if (esEnvase) {
         setCajas(initialValues.cajas || "");
-        setMas(initialValues.mas || "");
-        setMenos(initialValues.menos || "");
+        setMas(String(initialValues.mas ?? ""));
+        setMenos(String(initialValues.menos ?? ""));
       } else {
-        setCantidad(initialValues.cantidad || "");
+        setCantidad(String(initialValues.cantidad ?? ""));
       }
+    } else {
+      setCajas("");
+      setMas("");
+      setMenos("");
+      setCantidad("");
     }
   }, [initialValues, esEnvase]);
  
-  function handleSave() {
+  function handleGuardar() {
     if (esEnvase) {
       onSave({
         cajas,
@@ -41,48 +44,56 @@ export default function QuickCountModal({
   }
  
   return (
-    <div style={overlay}>
-      <div style={modal}>
-        <h2>{sku.nombre}</h2>
+    <div style={overlayStyle}>
+      <div style={modalStyle}>
+        <h2 style={{ marginTop: 0 }}>{sku.nombre}</h2>
  
         {esEnvase ? (
           <>
             <input
-              placeholder="Cajas (ej: 25+10)"
+              type="tel"
+              inputMode="numeric"
               value={cajas}
               onChange={(e) => setCajas(e.target.value)}
-              style={input}
+              style={inputStyle}
+              placeholder=""
             />
  
             <input
-              placeholder="+"
+              type="tel"
+              inputMode="numeric"
               value={mas}
               onChange={(e) => setMas(e.target.value)}
-              style={input}
+              style={inputStyle}
+              placeholder="+"
             />
  
             <input
-              placeholder="-"
+              type="tel"
+              inputMode="numeric"
               value={menos}
               onChange={(e) => setMenos(e.target.value)}
-              style={input}
+              style={inputStyle}
+              placeholder="-"
             />
           </>
         ) : (
           <input
-            placeholder="Cantidad"
+            type="tel"
+            inputMode="numeric"
             value={cantidad}
             onChange={(e) => setCantidad(e.target.value)}
-            style={input}
+            style={inputStyle}
+            placeholder=""
           />
         )}
  
-        <div style={{ display: "flex", gap: 10, marginTop: 15 }}>
-          <button onClick={handleSave} style={btnPrimary}>
+        <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
+          <button onClick={handleGuardar} style={primaryButtonStyle}>
             Guardar
           </button>
  
-          <button onClick={onClose} style={btnSecondary}>
+          <button onClick={onClose} style={secondaryButtonStyle}>
             Cancelar
           </button>
         </div>
@@ -91,44 +102,46 @@ export default function QuickCountModal({
   );
 }
  
-const overlay = {
+const overlayStyle = {
   position: "fixed",
   inset: 0,
-  background: "rgba(0,0,0,0.5)",
+  background: "rgba(0,0,0,0.45)",
   display: "flex",
-  justifyContent: "center",
   alignItems: "center",
+  justifyContent: "center",
   zIndex: 9999
 };
  
-const modal = {
+const modalStyle = {
   background: "#fff",
-  padding: 20,
-  borderRadius: 12,
-  width: 320
+  width: 360,
+  maxWidth: "92vw",
+  borderRadius: 16,
+  padding: 20
 };
  
-const input = {
+const inputStyle = {
   width: "100%",
-  padding: 10,
-  marginTop: 8,
-  borderRadius: 8,
-  border: "1px solid #ccc"
+  padding: 12,
+  marginBottom: 10,
+  borderRadius: 10,
+  border: "1px solid #ddd",
+  fontSize: 16
 };
  
-const btnPrimary = {
-  flex: 1,
-  padding: 10,
+const primaryButtonStyle = {
+  padding: "10px 14px",
+  borderRadius: 10,
+  border: "none",
   background: "#ffd60a",
-  border: "none",
-  borderRadius: 8,
-  fontWeight: "bold"
+  fontWeight: "bold",
+  cursor: "pointer"
 };
  
-const btnSecondary = {
-  flex: 1,
-  padding: 10,
-  background: "#eee",
-  border: "none",
-  borderRadius: 8
+const secondaryButtonStyle = {
+  padding: "10px 14px",
+  borderRadius: 10,
+  border: "1px solid #ddd",
+  background: "#fff",
+  cursor: "pointer"
 };
