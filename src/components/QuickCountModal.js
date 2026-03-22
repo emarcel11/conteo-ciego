@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useState, useEffect } from "react";
  
 export default function QuickCountModal({
   sku,
@@ -7,79 +7,128 @@ export default function QuickCountModal({
   initialValues,
   esEnvase
 }) {
+  // ⚠️ Hooks SIEMPRE arriba (no condicionales)
   const [cajas, setCajas] = useState("");
   const [mas, setMas] = useState("");
   const [menos, setMenos] = useState("");
   const [cantidad, setCantidad] = useState("");
  
+  // Cargar valores iniciales
   useEffect(() => {
     if (initialValues) {
       if (esEnvase) {
         setCajas(initialValues.cajas || "");
-        setMas(String(initialValues.mas ?? ""));
-        setMenos(String(initialValues.menos ?? ""));
+        setMas(initialValues.mas || "");
+        setMenos(initialValues.menos || "");
       } else {
-        setCantidad(String(initialValues.cantidad ?? ""));
+        setCantidad(initialValues.cantidad || "");
       }
-    } else {
-      setCajas("");
-      setMas("");
-      setMenos("");
-      setCantidad("");
     }
   }, [initialValues, esEnvase]);
  
-  function handleGuardar() {
+  function handleSave() {
     if (esEnvase) {
-      onSave({ cajas, mas, menos });
+      onSave({
+        cajas,
+        mas,
+        menos
+      });
     } else {
-      onSave({ cantidad });
+      onSave({
+        cantidad
+      });
     }
   }
  
-  if (!sku) return null;
- 
   return (
-    <div style={overlayStyle}>
-      <div style={modalStyle}>
+    <div style={overlay}>
+      <div style={modal}>
         <h2>{sku.nombre}</h2>
  
         {esEnvase ? (
           <>
-            <label>Cajas</label>
-            <input value={cajas} onChange={(e) => setCajas(e.target.value)} />
+            <input
+              placeholder="Cajas (ej: 25+10)"
+              value={cajas}
+              onChange={(e) => setCajas(e.target.value)}
+              style={input}
+            />
  
-            <label>+</label>
-            <input value={mas} onChange={(e) => setMas(e.target.value)} />
+            <input
+              placeholder="+"
+              value={mas}
+              onChange={(e) => setMas(e.target.value)}
+              style={input}
+            />
  
-            <label>-</label>
-            <input value={menos} onChange={(e) => setMenos(e.target.value)} />
+            <input
+              placeholder="-"
+              value={menos}
+              onChange={(e) => setMenos(e.target.value)}
+              style={input}
+            />
           </>
         ) : (
-          <>
-            <label>Cantidad</label>
-            <input value={cantidad} onChange={(e) => setCantidad(e.target.value)} />
-          </>
+          <input
+            placeholder="Cantidad"
+            value={cantidad}
+            onChange={(e) => setCantidad(e.target.value)}
+            style={input}
+          />
         )}
  
-        <button onClick={handleGuardar}>Guardar</button>
-        <button onClick={onClose}>Cerrar</button>
+        <div style={{ display: "flex", gap: 10, marginTop: 15 }}>
+          <button onClick={handleSave} style={btnPrimary}>
+            Guardar
+          </button>
+ 
+          <button onClick={onClose} style={btnSecondary}>
+            Cancelar
+          </button>
+        </div>
       </div>
     </div>
   );
 }
  
-const overlayStyle = {
+const overlay = {
   position: "fixed",
   inset: 0,
   background: "rgba(0,0,0,0.5)",
   display: "flex",
   justifyContent: "center",
-  alignItems: "center"
+  alignItems: "center",
+  zIndex: 9999
 };
  
-const modalStyle = {
+const modal = {
   background: "#fff",
   padding: 20,
-  borderRadius: 10
+  borderRadius: 12,
+  width: 320
+};
+ 
+const input = {
+  width: "100%",
+  padding: 10,
+  marginTop: 8,
+  borderRadius: 8,
+  border: "1px solid #ccc"
+};
+ 
+const btnPrimary = {
+  flex: 1,
+  padding: 10,
+  background: "#ffd60a",
+  border: "none",
+  borderRadius: 8,
+  fontWeight: "bold"
+};
+ 
+const btnSecondary = {
+  flex: 1,
+  padding: 10,
+  background: "#eee",
+  border: "none",
+  borderRadius: 8
 };

@@ -87,7 +87,7 @@ function metaKey(id) {
   return `conteo_ciego_meta_${id}`;
 }
 
-const DRAFT_KEY = "conteo_ciego_borrador_v5";
+const DRAFT_KEY = "conteo_ciego_borrador_v6";
 
 export default function App() {
   const [skuActivo, setSkuActivo] = useState(null);
@@ -95,7 +95,7 @@ export default function App() {
 
   const [transporte, setTransporte] = useState("");
   const [placa, setPlaca] = useState("");
-  const [conductores, setConductores] = useState("");
+  const [conductor, setConductor] = useState("");
   const [responsable, setResponsable] = useState("");
 
   const [tiempo, setTiempo] = useState(0);
@@ -157,7 +157,7 @@ export default function App() {
           const parsed = JSON.parse(draft);
           setTransporte(parsed.transporte || "");
           setPlaca(parsed.placa || "");
-          setConductores(parsed.conductores || "");
+          setConductor(parsed.conductor || "");
           setResponsable(parsed.responsable || "");
           setTiempo(parsed.tiempo || 0);
           setCronometroActivo(false);
@@ -178,7 +178,7 @@ export default function App() {
     const payload = {
       transporte,
       placa,
-      conductores,
+      conductor,
       responsable,
       tiempo,
       detalleConteo,
@@ -190,7 +190,7 @@ export default function App() {
   }, [
     transporte,
     placa,
-    conductores,
+    conductor,
     responsable,
     tiempo,
     detalleConteo,
@@ -472,13 +472,13 @@ export default function App() {
   }
 
   async function guardarConteo() {
-    if (!transporte || !placa || !conductores || !responsable) {
+    if (!transporte || !placa || !conductor || !responsable) {
       alert("Completa transporte, placa, conductor y responsable");
       return;
     }
 
     const confirmado = window.confirm(
-      `¿Deseas guardar este conteo?\n\nTransporte: ${transporte}\nPlaca: ${placa}\nConductor: ${conductores}\nResponsable: ${responsable}\nTiempo: ${formatearTiempo(
+      `¿Deseas guardar este conteo?\n\nTransporte: ${transporte}\nPlaca: ${placa}\nConductor: ${conductor}\nResponsable: ${responsable}\nTiempo: ${formatearTiempo(
         tiempo
       )}`
     );
@@ -489,7 +489,7 @@ export default function App() {
       usuario: responsable,
       transporte,
       placa,
-      conductores,
+      conductor,
       responsable,
       fecha: new Date().toISOString(),
       tiempo_conteo: tiempo,
@@ -515,7 +515,7 @@ export default function App() {
         .update({
           transporte,
           placa,
-          conductores,
+          conductor,
           responsable,
           tiempo_conteo: tiempo,
           total_botellas: totalBotellasConteo
@@ -524,7 +524,7 @@ export default function App() {
 
       if (errorUpdate) {
         console.log(errorUpdate);
-        alert("Error actualizando conteo");
+        alert(errorUpdate.message || "Error actualizando conteo");
         return;
       }
 
@@ -535,7 +535,7 @@ export default function App() {
 
       if (errorDelete) {
         console.log(errorDelete);
-        alert("Error actualizando detalle");
+        alert(errorDelete.message || "Error actualizando detalle");
         return;
       }
 
@@ -546,7 +546,7 @@ export default function App() {
 
         if (errorInsertDetalle) {
           console.log(errorInsertDetalle);
-          alert("Error guardando detalle");
+          alert(errorInsertDetalle.message || "Error guardando detalle");
           return;
         }
       }
@@ -563,7 +563,7 @@ export default function App() {
 
     if (error) {
       console.log(error);
-      alert("Error guardando conteo");
+      alert(error.message || "Error guardando conteo");
       return;
     }
 
@@ -576,7 +576,7 @@ export default function App() {
 
       if (errorDetalle) {
         console.log(errorDetalle);
-        alert("Error guardando detalle");
+        alert(errorDetalle.message || "Error guardando detalle");
         return;
       }
     }
@@ -594,7 +594,7 @@ export default function App() {
 
     setTransporte("");
     setPlaca("");
-    setConductores("");
+    setConductor("");
     setResponsable("");
 
     setTiempo(0);
@@ -656,7 +656,7 @@ export default function App() {
   async function editarConteo(conteo) {
     setTransporte(conteo.transporte || "");
     setPlaca(conteo.placa || "");
-    setConductores(conteo.conductores || "");
+    setConductor(conteo.conductor || "");
     setResponsable(conteo.responsable || "");
     setTiempo(conteo.tiempo_conteo || 0);
     setCronometroActivo(false);
@@ -901,7 +901,7 @@ export default function App() {
           <div>Fecha: ${fecha}</div>
           <div>Placa: ${conteo.placa || ""}</div>
           <div>Transporte: ${conteo.transporte || ""}</div>
-          <div>Conductor: ${conteo.conductores || ""}</div>
+          <div>Conductor: ${conteo.conductor || ""}</div>
           <div>Responsable: ${conteo.responsable || ""}</div>
         </div>
 
@@ -1087,8 +1087,8 @@ export default function App() {
         />
         <input
           placeholder="Conductor"
-          value={conductores}
-          onChange={(e) => setConductores(e.target.value)}
+          value={conductor}
+          onChange={(e) => setConductor(e.target.value)}
           style={inputStyle}
         />
         <input
@@ -1320,7 +1320,7 @@ export default function App() {
               <div style={{ fontSize: 20, fontWeight: "bold" }}>Conteo #{c.id}</div>
               <div>Transporte: {c.transporte}</div>
               <div>Placa: {c.placa}</div>
-              <div>Conductor: {c.conductores}</div>
+              <div>Conductor: {c.conductor}</div>
               <div>Responsable: {c.responsable}</div>
 
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
