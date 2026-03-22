@@ -1418,63 +1418,76 @@ export default function App() {
                   lineHeight: 1.35
                 };
               }
-
-              function renderFilaHistorial(key, texto, onEdit = null) {
-const [nombre, valorRaw] = texto.split("→");
-const valor = valorRaw?.trim() || "";
-return (
-  <div
-    key={key}
-    onClick={() => marcarHistorial(key)}
-    style={{
-      marginBottom: 12,
-      padding: 14,
-      borderRadius: 12,
-      background: "#fff",
-      border: "1px solid #eee"
-    }}
-  >
+function renderFilaHistorial(key, texto, onEdit = null) {
+  const [nombre, valorRaw] = texto.split("→");
+ const valor = valorRaw?.replace("botellas", "").trim() || "";
+ 
+  return (
     <div
+      key={key}
+      onClick={() => marcarHistorial(key)}
       style={{
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        gap: 10
+        marginBottom: 10,
+        padding: 10,
+        borderRadius: 10,
+        background: "#fff",
+        border: "1px solid #eee"
       }}
     >
-      {/* TEXTO */}
       <div
         style={{
-          fontSize: 17,
-          fontWeight: "900", // 🔥 súper negrito
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 6
         }}
       >
-        {nombre} → {valor}
-      </div>
- 
-      {/* BOTÓN */}
-      {onEdit && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onEdit();
-          }}
+        {/* TEXTO */}
+        <div
           style={{
-            padding: "6px 10px",
-            borderRadius: 8,
-            border: "1px solid #ddd",
-            background: "#fff",
-            cursor: "pointer",
-            fontSize: 13
+            fontSize: 14,
+            fontWeight: "700",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis"
           }}
         >
-          Modificar
-        </button>
-      )}
+          {nombre} ={" "}
+          <span
+            style={{
+              fontWeight: "900",
+              fontSize: 15,
+              textDecoration: "underline"
+            }}
+          >
+            {valor}
+          </span>
+        </div>
+ 
+        {/* BOTÓN */}
+        {onEdit && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit();
+            }}
+            style={{
+              padding: "2px 6px",
+              fontSize: 10,
+              borderRadius: 5,
+              border: "1px solid #ccc",
+              background: "#fff",
+              whiteSpace: "nowrap",
+              flexShrink: 0
+            }}
+          >
+            Modificar
+          </button>
+        )}
+      </div>
     </div>
-  </div>
-);
-              }
+  );
+}
 
               return (
                 <>
