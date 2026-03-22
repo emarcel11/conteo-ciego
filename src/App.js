@@ -1405,19 +1405,6 @@ export default function App() {
                 envases1000Hist.reduce((acc, d) => acc + (d.cajas || 0), 0) +
                 (jabasHist.find((d) => d.sku_codigo === "JABA_1000")?.cajas || 0);
 
-              function estiloSeleccionable(key) {
-                return {
-                  fontSize: 22,
-                  fontWeight: "bold",
-                  marginBottom: 10,
-                  padding: 12,
-                  borderRadius: 12,
-                  cursor: "pointer",
-                  background: marcadosHistorial[key] ? "#b6f5b6" : "#fff",
-                  border: "1px solid #eee",
-                  lineHeight: 1.35
-                };
-              }
 function renderFilaHistorial(key, texto, onEdit = null) {
   const [nombre, valorRaw] = texto.split("→");
  const valor = valorRaw?.replace("botellas", "").trim() || "";
