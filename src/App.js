@@ -122,8 +122,7 @@ export default function App() {
   const [detalleModal, setDetalleModal] = useState(false);
   const [detalleItemsHistorial, setDetalleItemsHistorial] = useState([]);
   const [conteoHistorialActual, setConteoHistorialActual] = useState(null);
-  const [marcadosHistorial, setMarcadosHistorial] = useState({});
-
+  const [_, setMarcadosHistorial] = useState({});
   const [dashboardVisible, setDashboardVisible] = useState(false);
   const [dashboardData, setDashboardData] = useState({
     totalDia: 0,
