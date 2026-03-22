@@ -122,7 +122,7 @@ export default function App() {
   const [detalleModal, setDetalleModal] = useState(false);
   const [detalleItemsHistorial, setDetalleItemsHistorial] = useState([]);
   const [conteoHistorialActual, setConteoHistorialActual] = useState(null);
-  const [_, setMarcadosHistorial] = useState({});
+
   const [dashboardVisible, setDashboardVisible] = useState(false);
   const [dashboardData, setDashboardData] = useState({
     totalDia: 0,
@@ -387,13 +387,6 @@ export default function App() {
     }));
   }
 
-  function marcarHistorial(nombre) {
-    setMarcadosHistorial((prev) => ({
-      ...prev,
-      [nombre]: !prev[nombre]
-    }));
-  }
-
   function renderLineaResultado(item, unidad) {
     const valor = unidad === "botellas" ? item.total_botellas : item.cajas;
 
@@ -649,7 +642,6 @@ export default function App() {
     setConteoHistorialActual(conteo);
     setDetalleItemsHistorial(ordenados);
     setDetalleModal(true);
-    setMarcadosHistorial({});
   }
 
   async function editarConteo(conteo) {
@@ -1346,9 +1338,10 @@ export default function App() {
           <div
             style={{
               ...modalStyle,
-              width: 460,
+              width: "92vw",
+              maxWidth: 460,
               maxHeight: "85vh",
-              padding: 22
+              padding: 18
             }}
           >
             <h2 style={{ marginTop: 0, fontSize: 28 }}>Detalle del Historial</h2>
@@ -1404,82 +1397,106 @@ export default function App() {
                 envases1000Hist.reduce((acc, d) => acc + (d.cajas || 0), 0) +
                 (jabasHist.find((d) => d.sku_codigo === "JABA_1000")?.cajas || 0);
 
-function renderFilaHistorial(key, texto, onEdit = null) {
-  const [nombre, valorRaw] = texto.split("→");
- const valor = valorRaw?.replace("botellas", "").trim() || "";
- 
-  return (
-    <div
-      key={key}
-      onClick={() => marcarHistorial(key)}
-      style={{
-        marginBottom: 10,
-        padding: 10,
-        borderRadius: 10,
-        background: "#fff",
-        border: "1px solid #eee"
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          gap: 6
-        }}
-      >
-        {/* TEXTO */}
-        <div
-          style={{
-            fontSize: 14,
-            fontWeight: "700",
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            textOverflow: "ellipsis"
-          }}
-        >
-          {nombre} ={" "}
-          <span
-            style={{
-              fontWeight: "900",
-              fontSize: 15,
-              textDecoration: "underline"
-            }}
-          >
-            {valor}
-          </span>
-        </div>
- 
-        {/* BOTÓN */}
-        {onEdit && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onEdit();
-            }}
-            style={{
-              padding: "2px 6px",
-              fontSize: 10,
-              borderRadius: 5,
-              border: "1px solid #ccc",
-              background: "#fff",
-              whiteSpace: "nowrap",
-              flexShrink: 0
-            }}
-          >
-            Modificar
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
+              function renderFilaHistorial(key, texto, onEdit = null) {
+                const esProducto = key.startsWith("producto_");
+                const esPfn = key.startsWith("pfn_");
+                const esNormal = esProducto || esPfn;
+
+                const [nombre, valorRaw] = texto.split("→");
+                const valor = valorRaw?.trim() || "";
+
+                return (
+                  <div
+                    key={key}
+                    style={{
+                      marginBottom: 8,
+                      padding: 10,
+                      borderRadius: 10,
+                      background: "#fff",
+                      border: "1px solid #eee"
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        gap: 6
+                      }}
+                    >
+                      <div
+                        style={{
+                          flex: 1,
+                          minWidth: 0
+                        }}
+                      >
+                        {esNormal ? (
+                          <div
+                            style={{
+                              fontSize: 14,
+                              fontWeight: "700",
+                              lineHeight: 1.35,
+                              wordBreak: "break-word"
+                            }}
+                          >
+                            {texto}
+                          </div>
+                        ) : (
+                          <>
+                            <div
+                              style={{
+                                fontSize: 14,
+                                fontWeight: "700",
+                                whiteSpace: "nowrap",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis"
+                              }}
+                            >
+                              {nombre}
+                            </div>
+
+                            <div
+                              style={{
+                                fontSize: 18,
+                                fontWeight: "900",
+                                lineHeight: 1.2
+                              }}
+                            >
+                              {valor}
+                            </div>
+                          </>
+                        )}
+                      </div>
+
+                      {onEdit && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onEdit();
+                          }}
+                          style={{
+                            padding: "4px 8px",
+                            fontSize: 11,
+                            borderRadius: 6,
+                            border: "1px solid #ccc",
+                            background: "#fff",
+                            whiteSpace: "nowrap",
+                            flexShrink: 0
+                          }}
+                        >
+                          Modificar
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              }
 
               return (
                 <>
                   {productosHist.length > 0 && (
                     <>
-                      <h3 style={{ fontSize: 24, marginBottom: 12 }}>Producto</h3>
+                      <h3 style={{ fontSize: 22, marginBottom: 10 }}>Producto</h3>
                       {productosHist.map((p, i) =>
                         renderFilaHistorial(
                           `producto_${p.nombre}_${i}`,
@@ -1497,8 +1514,8 @@ function renderFilaHistorial(key, texto, onEdit = null) {
 
                   {pfnHist.length > 0 && (
                     <>
-                      <div style={{ borderTop: "2px solid #eee", margin: "14px 0" }} />
-                      <h3 style={{ fontSize: 24, marginBottom: 12 }}>PFN</h3>
+                      <div style={{ borderTop: "2px solid #eee", margin: "12px 0" }} />
+                      <h3 style={{ fontSize: 22, marginBottom: 10 }}>PFN</h3>
                       {pfnHist.map((p, i) =>
                         renderFilaHistorial(
                           `pfn_${p.nombre}_${i}`,
@@ -1518,8 +1535,8 @@ function renderFilaHistorial(key, texto, onEdit = null) {
                     envases11Hist.length > 0 ||
                     envases1000Hist.length > 0) && (
                     <>
-                      <div style={{ borderTop: "2px solid #eee", margin: "14px 0" }} />
-                      <h3 style={{ fontSize: 24, marginBottom: 12 }}>Envases</h3>
+                      <div style={{ borderTop: "2px solid #eee", margin: "12px 0" }} />
+                      <h3 style={{ fontSize: 22, marginBottom: 10 }}>Envases</h3>
 
                       {envases330Hist.map((d) =>
                         renderFilaHistorial(
@@ -1552,8 +1569,8 @@ function renderFilaHistorial(key, texto, onEdit = null) {
                     totalJabas11Hist > 0 ||
                     totalJabas1000Hist > 0) && (
                     <>
-                      <div style={{ borderTop: "2px solid #eee", margin: "14px 0" }} />
-                      <h3 style={{ fontSize: 24, marginBottom: 12 }}>Jabas vacías / Cajas</h3>
+                      <div style={{ borderTop: "2px solid #eee", margin: "12px 0" }} />
+                      <h3 style={{ fontSize: 22, marginBottom: 10 }}>Jabas vacías / Cajas</h3>
 
                       {jabasHist.map((d) =>
                         renderFilaHistorial(
@@ -1585,8 +1602,8 @@ function renderFilaHistorial(key, texto, onEdit = null) {
 
                   {activosHist.length > 0 && (
                     <>
-                      <div style={{ borderTop: "2px solid #eee", margin: "14px 0" }} />
-                      <h3 style={{ fontSize: 24, marginBottom: 12 }}>Activos</h3>
+                      <div style={{ borderTop: "2px solid #eee", margin: "12px 0" }} />
+                      <h3 style={{ fontSize: 22, marginBottom: 10 }}>Activos</h3>
 
                       {activosHist.map((d) =>
                         renderFilaHistorial(
@@ -1605,9 +1622,9 @@ function renderFilaHistorial(key, texto, onEdit = null) {
               onClick={() => setDetalleModal(false)}
               style={{
                 ...primaryButtonStyle,
-                marginTop: 12,
-                fontSize: 18,
-                padding: "12px 18px"
+                marginTop: 10,
+                fontSize: 16,
+                padding: "10px 16px"
               }}
             >
               Cerrar
