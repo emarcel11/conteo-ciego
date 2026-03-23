@@ -1269,29 +1269,33 @@ function marcarHistorial(key) {
             )}
           </>
         )}
-
-        {(jabasVacias.length > 0 || totalJabas330 || totalJabas11 || totalJabas1000) && (
-          <>
-            <div style={{ borderTop: "2px solid #eee", margin: "12px 0" }} />
-            <h3>Jabas vacías / Cajas</h3>
-
-            {jabasVacias.length > 0 && (
-              <>
-                <h4>Jabas vacías</h4>
-                {jabasVacias.map((item) => renderLineaResultado(item, "cajas"))}
-              </>
-            )}
-
-            {(totalJabas330 || totalJabas11 || totalJabas1000) && (
-              <>
-                <h4>Total de jabas</h4>
-                {totalJabas330 > 0 && renderLineaSimple("Total de Jabas 330", totalJabas330)}
-                {totalJabas11 > 0 && renderLineaSimple("Total de Jabas 1/1", totalJabas11)}
-                {totalJabas1000 > 0 && renderLineaSimple("Total de Jabas 1000", totalJabas1000)}
-              </>
-            )}
-          </>
-        )}
+               {jabasVacias.length > 0 && (
+  <section style={{ marginTop: 20 }}>
+    <div style={{ borderTop: "4px solid #ddd", margin: "20px 0" }} />
+    <h2>Jabas vacías</h2>
+ 
+    {jabasVacias.map((item) =>
+      renderLineaResultado(item, "cajas")
+    )}
+  </section>
+)}
+ 
+{(totalJabas330 || totalJabas11 || totalJabas1000) && (
+  <section style={{ marginTop: 20 }}>
+    <div style={{ borderTop: "4px solid #ddd", margin: "20px 0" }} />
+    <h2>Total de Jabas</h2>
+ 
+    {totalJabas330 > 0 &&
+      renderLineaSimple("Total de Jabas 330", totalJabas330)}
+ 
+    {totalJabas11 > 0 &&
+      renderLineaSimple("Total de Jabas 1/1", totalJabas11)}
+ 
+    {totalJabas1000 > 0 &&
+      renderLineaSimple("Total de Jabas 1000", totalJabas1000)}
+  </section>
+)}
+ 
 
         {activosResultado.length > 0 && (
           <>
