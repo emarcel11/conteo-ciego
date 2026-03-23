@@ -1284,7 +1284,7 @@ function marcarHistorial(key) {
 
             {(totalJabas330 || totalJabas11 || totalJabas1000) && (
               <>
-                <h4>Cajas</h4>
+                <h4>Total de jabas</h4>
                 {totalJabas330 > 0 && renderLineaSimple("Total de Jabas 330", totalJabas330)}
                 {totalJabas11 > 0 && renderLineaSimple("Total de Jabas 1/1", totalJabas11)}
                 {totalJabas1000 > 0 && renderLineaSimple("Total de Jabas 1000", totalJabas1000)}
