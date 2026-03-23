@@ -10,6 +10,7 @@ function calcularExpresion(valor) {
     const texto = String(valor || "")
       .replace(/\s+/g, "")
       .replace(/[^0-9+]/g, "");
+
     if (!texto) return 0;
 
     return texto
@@ -123,7 +124,6 @@ export default function App() {
   const [detalleItemsHistorial, setDetalleItemsHistorial] = useState([]);
   const [conteoHistorialActual, setConteoHistorialActual] = useState(null);
   const [marcadosHistorial, setMarcadosHistorial] = useState({});
- 
 
   const [dashboardVisible, setDashboardVisible] = useState(false);
   const [dashboardData, setDashboardData] = useState({
@@ -187,6 +187,7 @@ export default function App() {
       pfnItems,
       marcadosResultados
     };
+
     localStorage.setItem(DRAFT_KEY, JSON.stringify(payload));
   }, [
     transporte,
@@ -388,12 +389,14 @@ export default function App() {
       [nombre]: !prev[nombre]
     }));
   }
-function marcarHistorial(key) {
-  setMarcadosHistorial((prev) => ({
-    ...prev,
-    [key]: !prev[key]
-  }));
-}
+
+  function marcarHistorial(key) {
+    setMarcadosHistorial((prev) => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  }
+
   function renderLineaResultado(item, unidad) {
     const valor = unidad === "botellas" ? item.total_botellas : item.cajas;
 
@@ -1071,15 +1074,14 @@ function marcarHistorial(key) {
       </div>
 
       <section style={cardStyle}>
-       <input
-  placeholder="Transporte"
-  value={transporte}
-  onChange={(e) => setTransporte(e.target.value)}
-  style={inputStyle}
-  type="tel"
-  inputMode="numeric"
-/>
- 
+        <input
+          placeholder="Transporte"
+          value={transporte}
+          onChange={(e) => setTransporte(e.target.value)}
+          style={inputStyle}
+          type="tel"
+          inputMode="numeric"
+        />
         <input
           placeholder="Placa"
           value={placa}
@@ -1224,87 +1226,80 @@ function marcarHistorial(key) {
         ))}
       </section>
 
-      <section ref={exportRef} style={cardStyle}>
-        <h2>Resultados</h2>
+      <div ref={exportRef}>
+        <section style={cardStyle}>
+          <h2>Resultados</h2>
 
-        {productos.length > 0 && (
-          <>
-            <h3>Producto</h3>
-            {productos.map((p) => renderLineaSimple(p.nombre, p.cantidad))}
-          </>
-        )}
+          {productos.length > 0 && (
+            <>
+              <h3>Producto</h3>
+              {productos.map((p) => renderLineaSimple(p.nombre, p.cantidad))}
+            </>
+          )}
 
-        {pfnItems.length > 0 && (
-          <>
-            <div style={{ borderTop: "2px solid #eee", margin: "12px 0" }} />
-            <h3>PFN</h3>
-            {pfnItems.map((p) => renderLineaSimple(p.nombre, p.cantidad))}
-          </>
-        )}
+          {pfnItems.length > 0 && (
+            <>
+              <div style={{ borderTop: "2px solid #eee", margin: "12px 0" }} />
+              <h3>PFN</h3>
+              {pfnItems.map((p) => renderLineaSimple(p.nombre, p.cantidad))}
+            </>
+          )}
 
-        {(envases330.length > 0 || envases11.length > 0 || envases1000.length > 0) && (
-          <>
-            <div style={{ borderTop: "2px solid #eee", margin: "12px 0" }} />
-            <h3>Envases</h3>
+          {(envases330.length > 0 || envases11.length > 0 || envases1000.length > 0) && (
+            <>
+              <div style={{ borderTop: "2px solid #eee", margin: "12px 0" }} />
+              <h3>Envases</h3>
 
-            {envases330.length > 0 && (
-              <>
-                <h4>Envases 330</h4>
-                {envases330.map((item) => renderLineaResultado(item, "botellas"))}
-              </>
-            )}
+              {envases330.length > 0 && (
+                <>
+                  <h4>Envases 330</h4>
+                  {envases330.map((item) => renderLineaResultado(item, "botellas"))}
+                </>
+              )}
 
-            {envases11.length > 0 && (
-              <>
-                <h4>Envases 550 / 600</h4>
-                {envases11.map((item) => renderLineaResultado(item, "botellas"))}
-              </>
-            )}
+              {envases11.length > 0 && (
+                <>
+                  <h4>Envases 550 / 600</h4>
+                  {envases11.map((item) => renderLineaResultado(item, "botellas"))}
+                </>
+              )}
 
-            {envases1000.length > 0 && (
-              <>
-                <h4>Envases 850 / 1000</h4>
-                {envases1000.map((item) => renderLineaResultado(item, "botellas"))}
-              </>
-            )}
-          </>
-        )}
-               {jabasVacias.length > 0 && (
-  <section style={{ marginTop: 20 }}>
-    <div style={{ borderTop: "4px solid #ddd", margin: "20px 0" }} />
-    <h2>Jabas vacías</h2>
- 
-    {jabasVacias.map((item) =>
-      renderLineaResultado(item, "cajas")
-    )}
-  </section>
-)}
- 
-{(totalJabas330 || totalJabas11 || totalJabas1000) && (
-  <section style={{ marginTop: 20 }}>
-    <div style={{ borderTop: "4px solid #ddd", margin: "20px 0" }} />
-    <h2>Total de Jabas</h2>
- 
-    {totalJabas330 > 0 &&
-      renderLineaSimple("Total de Jabas 330", totalJabas330)}
- 
-    {totalJabas11 > 0 &&
-      renderLineaSimple("Total de Jabas 1/1", totalJabas11)}
- 
-    {totalJabas1000 > 0 &&
-      renderLineaSimple("Total de Jabas 1000", totalJabas1000)}
-  </section>
-)}
- 
+              {envases1000.length > 0 && (
+                <>
+                  <h4>Envases 850 / 1000</h4>
+                  {envases1000.map((item) => renderLineaResultado(item, "botellas"))}
+                </>
+              )}
+            </>
+          )}
 
-        {activosResultado.length > 0 && (
-          <>
-            <div style={{ borderTop: "2px solid #eee", margin: "12px 0" }} />
-            <h3>Activos</h3>
-            {activosResultado.map((item) => renderLineaSimple(item.descripcion, item.cajas))}
-          </>
-        )}
-      </section>
+          {jabasVacias.length > 0 && (
+            <>
+              <div style={{ borderTop: "2px solid #eee", margin: "12px 0" }} />
+              <h3>Jabas vacías</h3>
+              {jabasVacias.map((item) => renderLineaResultado(item, "cajas"))}
+            </>
+          )}
+
+          {(totalJabas330 || totalJabas11 || totalJabas1000) && (
+            <>
+              <div style={{ borderTop: "2px solid #eee", margin: "12px 0" }} />
+              <h3>Total de Jabas</h3>
+              {totalJabas330 > 0 && renderLineaSimple("Total de Jabas 330", totalJabas330)}
+              {totalJabas11 > 0 && renderLineaSimple("Total de Jabas 1/1", totalJabas11)}
+              {totalJabas1000 > 0 && renderLineaSimple("Total de Jabas 1000", totalJabas1000)}
+            </>
+          )}
+
+          {activosResultado.length > 0 && (
+            <>
+              <div style={{ borderTop: "2px solid #eee", margin: "12px 0" }} />
+              <h3>Activos</h3>
+              {activosResultado.map((item) => renderLineaSimple(item.descripcion, item.cajas))}
+            </>
+          )}
+        </section>
+      </div>
 
       <div style={{ display: "flex", gap: 10, marginTop: 16, flexWrap: "wrap" }}>
         <button onClick={guardarConteo} style={primaryButtonStyle}>
@@ -1412,64 +1407,64 @@ function marcarHistorial(key) {
                 (jabasHist.find((d) => d.sku_codigo === "JABA_1000")?.cajas || 0);
 
               function renderFilaHistorial(key, texto, onEdit = null) {
-  const [nombre, valorRaw] = texto.split("→");
- 
-  let valor = valorRaw?.trim() || "";
- 
-  valor = valor.replace("botellas", "").replace("cajas", "").trim();
- const esParentesis =
-  nombre.toLowerCase().includes("330") ||
-  nombre.toLowerCase().includes("550") ||
-  nombre.toLowerCase().includes("600") ||
-  nombre.toLowerCase().includes("850") ||
-  nombre.toLowerCase().includes("1000") ||
-  nombre.toLowerCase().includes("paleta") ||
-  nombre.toLowerCase().includes("caja") ||
-  nombre.toLowerCase().includes("activo"); 
-  return (
-    <div
-      key={key}
-      onClick={() => marcarHistorial(key)}
-      style={{
-        marginBottom: 8,
-        padding: 10,
-        borderRadius: 10,
-        background: marcadosHistorial[key] ? "#b6f5b6" : "#fff",
-        border: "1px solid #eee",
-        cursor: "pointer"
-      }}
-    >
-      <div style={{
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center"
-      }}>
-        <div style={{ fontWeight: "700" }}>
-          {nombre} ={" "}
-          <span style={{ fontWeight: "900" }}>
-          {esParentesis ? `(${valor})` : valor}
-                    </span>
-        </div>
- 
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            if (onEdit) onEdit();
-          }}
-          style={{
-            padding: "4px 8px",
-            borderRadius: 6,
-            border: "1px solid #ccc",
-            background: "#fff"
-          }}
-        >
-          Modificar
-        </button>
-      </div>
-    </div>
-  );
-}
- 
+                const [nombre, valorRaw] = texto.split("→");
+                let valor = valorRaw?.trim() || "";
+
+                valor = valor.replace("botellas", "").replace("cajas", "").trim();
+
+                const esParentesis =
+                  nombre.toLowerCase().includes("330") ||
+                  nombre.toLowerCase().includes("550") ||
+                  nombre.toLowerCase().includes("600") ||
+                  nombre.toLowerCase().includes("850") ||
+                  nombre.toLowerCase().includes("1000") ||
+                  nombre.toLowerCase().includes("paleta") ||
+                  nombre.toLowerCase().includes("caja") ||
+                  nombre.toLowerCase().includes("activo");
+
+                return (
+                  <div
+                    key={key}
+                    onClick={() => marcarHistorial(key)}
+                    style={{
+                      marginBottom: 8,
+                      padding: 10,
+                      borderRadius: 10,
+                      background: marcadosHistorial[key] ? "#b6f5b6" : "#fff",
+                      border: "1px solid #eee",
+                      cursor: "pointer"
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center"
+                      }}
+                    >
+                      <div style={{ fontWeight: "700" }}>
+                        {nombre} = <span style={{ fontWeight: "900" }}>{esParentesis ? `(${valor})` : valor}</span>
+                      </div>
+
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (onEdit) onEdit();
+                        }}
+                        style={{
+                          padding: "4px 8px",
+                          borderRadius: 6,
+                          border: "1px solid #ccc",
+                          background: "#fff"
+                        }}
+                      >
+                        Modificar
+                      </button>
+                    </div>
+                  </div>
+                );
+              }
+
               return (
                 <>
                   {productosHist.length > 0 && (
@@ -1542,41 +1537,55 @@ function marcarHistorial(key) {
                     </>
                   )}
 
-                  {(jabasHist.length > 0 ||
-                    totalJabas330Hist > 0 ||
-                    totalJabas11Hist > 0 ||
-                    totalJabas1000Hist > 0) && (
-                    <>
-                      <div style={{ borderTop: "2px solid #eee", margin: "12px 0" }} />
-                      <h3 style={{ fontSize: 22, marginBottom: 10 }}>Jabas vacías / Cajas</h3>
-
-                      {jabasHist.map((d) =>
-                        renderFilaHistorial(
-                          d.descripcion,
-                          `${d.descripcion} → ${d.cajas} cajas`,
-                          () => editarSkuDesdeHistorial(d)
-                        )
-                      )}
-
-                      {totalJabas330Hist > 0 &&
-                        renderFilaHistorial(
-                          "total_jabas_330",
-                          `Total de Jabas 330 → ${totalJabas330Hist}`
-                        )}
-
-                      {totalJabas11Hist > 0 &&
-                        renderFilaHistorial(
-                          "total_jabas_11",
-                          `Total de Jabas 1/1 → ${totalJabas11Hist}`
-                        )}
-
-                      {totalJabas1000Hist > 0 &&
-                        renderFilaHistorial(
-                          "total_jabas_1000",
-                          `Total de Jabas 1000 → ${totalJabas1000Hist}`
-                        )}
-                    </>
-                  )}
+                 {(jabasHist.length > 0 ||
+  totalJabas330Hist > 0 ||
+  totalJabas11Hist > 0 ||
+  totalJabas1000Hist > 0) && (
+  <>
+    {jabasHist.length > 0 && (
+      <>
+        <div style={{ borderTop: "2px solid #eee", margin: "12px 0" }} />
+        <h3 style={{ fontSize: 22, marginBottom: 10 }}>Jabas vacías</h3>
+ 
+        {jabasHist.map((d) =>
+          renderFilaHistorial(
+            d.descripcion,
+            `${d.descripcion} → ${d.cajas} cajas`,
+            () => editarSkuDesdeHistorial(d)
+          )
+        )}
+      </>
+    )}
+ 
+    {(totalJabas330Hist > 0 ||
+      totalJabas11Hist > 0 ||
+      totalJabas1000Hist > 0) && (
+      <>
+        <div style={{ borderTop: "2px solid #eee", margin: "12px 0" }} />
+        <h3 style={{ fontSize: 22, marginBottom: 10 }}>Total de Jabas</h3>
+ 
+        {totalJabas330Hist > 0 &&
+          renderFilaHistorial(
+            "total_jabas_330",
+            `Total de Jabas 330 → ${totalJabas330Hist}`
+          )}
+ 
+        {totalJabas11Hist > 0 &&
+          renderFilaHistorial(
+            "total_jabas_11",
+            `Total de Jabas 1/1 → ${totalJabas11Hist}`
+          )}
+ 
+        {totalJabas1000Hist > 0 &&
+          renderFilaHistorial(
+            "total_jabas_1000",
+            `Total de Jabas 1000 → ${totalJabas1000Hist}`
+          )}
+      </>
+    )}
+  </>
+)}
+ 
 
                   {activosHist.length > 0 && (
                     <>
