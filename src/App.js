@@ -117,6 +117,7 @@ export default function App() {
 
   const [historial, setHistorial] = useState([]);
   const [verHistorial, setVerHistorial] = useState(false);
+  const [busquedaTransporte, setBusquedaTransporte] = useState("");
 
   const [conteoEditando, setConteoEditando] = useState(null);
 
@@ -138,7 +139,7 @@ export default function App() {
   const [appLista, setAppLista] = useState(false);
 
   const exportRef = useRef(null);
-
+const detalleConteoRef = useRef({});
   useEffect(() => {
     if (!cronometroActivo) return;
 
@@ -200,7 +201,9 @@ export default function App() {
     pfnItems,
     marcadosResultados
   ]);
-
+useEffect(() => {
+  detalleConteoRef.current = detalleConteo;
+}, [detalleConteo]);
   useEffect(() => {
     cargarDashboard();
   }, []);
@@ -221,7 +224,7 @@ export default function App() {
     if (actual) {
       if (ENVASES.some((e) => e.id === sku.id)) {
         setModalInicial({
-          cajas: actual.cajas_texto || "",
+          cajas: actual.cajas_texto || String(actual.cajas || ""),
           mas: actual.botellas_mas || "",
           menos: actual.botellas_menos || ""
         });
@@ -237,57 +240,73 @@ export default function App() {
     setSkuActivo(sku);
   }
 
-  function guardarSku(valores) {
-    iniciarCronometroSiEsNuevo();
+function guardarSku(valores) {
+  iniciarCronometroSiEsNuevo();
 
-    const sku = skuActivo;
-    if (!sku) return;
+  const sku = skuActivo;
+  if (!sku) return;
 
-    const esBotella = ENVASES.some((item) => item.id === sku.id);
+  const esBotella = ENVASES.some((item) => item.id === sku.id);
 
-    if (esBotella) {
-      const expresionFinal = normalizarExpresion(valores.cajas || "");
-      const cajas = calcularExpresion(expresionFinal);
-      const mas = Number(valores.mas) || 0;
-      const menos = Number(valores.menos) || 0;
-      const total = cajas * sku.pack + mas - menos;
+  let nuevoDetalle;
 
-      const nuevoDetalle = {
-        sku_codigo: sku.id,
-        descripcion: sku.nombre,
-        cajas,
-        cajas_texto: expresionFinal,
-        botellas_mas: mas,
-        botellas_menos: menos,
-        total_botellas: total
-      };
+  if (esBotella) {
+    const expresionFinal = normalizarExpresion(valores.cajas || "");
+    const cajas = calcularExpresion(expresionFinal);
+    const mas = Number(valores.mas) || 0;
+    const menos = Number(valores.menos) || 0;
+    const total = cajas * sku.pack + mas - menos;
 
-      setDetalleConteo((prev) => ({
-        ...prev,
-        [sku.id]: nuevoDetalle
-      }));
-    } else {
-      const cantidad = Number(valores.cantidad) || 0;
+    nuevoDetalle = {
+      sku_codigo: sku.id,
+      descripcion: sku.nombre,
+      cajas,
+      cajas_texto: expresionFinal || String(cajas || ""),
+      botellas_mas: mas,
+      botellas_menos: menos,
+      total_botellas: total
+    };
+  } else {
+    const cantidad = Number(valores.cantidad) || 0;
 
-      const nuevoDetalle = {
-        sku_codigo: sku.id,
-        descripcion: sku.nombre,
-        cajas: cantidad,
-        botellas_mas: 0,
-        botellas_menos: 0,
-        total_botellas: cantidad
-      };
-
-      setDetalleConteo((prev) => ({
-        ...prev,
-        [sku.id]: nuevoDetalle
-      }));
-    }
-
-    setSkuActivo(null);
-    setModalInicial(null);
+    nuevoDetalle = {
+      sku_codigo: sku.id,
+      descripcion: sku.nombre,
+      cajas: cantidad,
+      cajas_texto: "",
+      botellas_mas: 0,
+      botellas_menos: 0,
+      total_botellas: cantidad
+    };
   }
 
+  const detalleActualizado = {
+    ...detalleConteoRef.current,
+    [sku.id]: nuevoDetalle
+  };
+
+  detalleConteoRef.current = detalleActualizado;
+  setDetalleConteo(detalleActualizado);
+
+  setDetalleItemsHistorial((prev) => {
+    if (!prev || prev.length === 0) return prev;
+
+    const existe = prev.some((item) => item.sku_codigo === sku.id);
+
+    const actualizado = existe
+      ? prev.map((item) =>
+          item.sku_codigo === sku.id ? { ...item, ...nuevoDetalle } : item
+        )
+      : [...prev, nuevoDetalle];
+
+    return ORDEN_RESULTADOS
+      .map((id) => actualizado.find((item) => item.sku_codigo === id))
+      .filter(Boolean);
+  });
+
+  setSkuActivo(null);
+  setModalInicial(null);
+}
   function agregarOActualizarProducto() {
     if (!nombreProducto || !cantidadProducto) return;
 
@@ -382,7 +401,15 @@ export default function App() {
       return acc;
     }, 0);
   }, [detalleConteo]);
+const historialFiltrado = useMemo(() => {
+  const texto = busquedaTransporte.trim().toLowerCase();
 
+  if (!texto) return historial;
+
+  return historial.filter((c) =>
+    String(c.transporte || "").toLowerCase().includes(texto)
+  );
+}, [historial, busquedaTransporte]);
   function marcarResultado(nombre) {
     setMarcadosResultados((prev) => ({
       ...prev,
@@ -460,18 +487,33 @@ export default function App() {
       </div>
     );
   }
+function construirMetaPayload() {
+  const detalleActual = detalleConteoRef.current;
 
-  function construirMetaPayload() {
-    return {
-      productos,
-      pfnItems,
-      detalleTextos: Object.fromEntries(
-        Object.values(detalleConteo)
-          .filter((item) => item?.cajas_texto)
-          .map((item) => [item.sku_codigo, item.cajas_texto])
-      )
-    };
-  }
+  return {
+    productos,
+    pfnItems,
+    detalleTextos: Object.fromEntries(
+      Object.values(detalleActual)
+        .filter((item) => item?.cajas_texto)
+        .map((item) => [item.sku_codigo, item.cajas_texto])
+    ),
+    detalleCompleto: Object.fromEntries(
+      Object.values(detalleActual).map((item) => [
+        item.sku_codigo,
+        {
+          sku_codigo: item.sku_codigo,
+          descripcion: item.descripcion,
+          cajas: Number(item.cajas || 0),
+          cajas_texto: item.cajas_texto || "",
+          botellas_mas: Number(item.botellas_mas || 0),
+          botellas_menos: Number(item.botellas_menos || 0),
+          total_botellas: Number(item.total_botellas || 0)
+        }
+      ])
+    )
+  };
+}
 
   async function guardarConteo() {
     if (!transporte || !placa || !conductor || !responsable) {
@@ -499,14 +541,21 @@ export default function App() {
       estado: "en_proceso"
     };
 
-    const detalleArray = Object.values(detalleConteo).map((item) => ({
+    const detalleActual = detalleConteoRef.current;
+
+const detalleArray = Object.values(detalleActual).map((item) => ({
       conteo_id: 0,
       sku_codigo: item.sku_codigo,
       descripcion: item.descripcion,
       cajas: item.cajas || 0,
       botellas_mas: item.botellas_mas || 0,
       botellas_menos: item.botellas_menos || 0,
-      total_botellas: item.total_botellas || 0
+      total_botellas:
+        ENVASES.some((e) => e.id === item.sku_codigo)
+          ? (item.cajas || 0) * (SKU_MAP[item.sku_codigo]?.pack || 0) +
+            (item.botellas_mas || 0) -
+            (item.botellas_menos || 0)
+          : item.cajas || 0
     }));
 
     const metaPayload = construirMetaPayload();
@@ -557,6 +606,7 @@ export default function App() {
 
       alert("Conteo actualizado");
       await cargarDashboard();
+      await cargarHistorial();
       limpiarPantalla();
       return;
     }
@@ -598,11 +648,12 @@ export default function App() {
     setPlaca("");
     setConductor("");
     setResponsable("");
-
+setBusquedaTransporte("");
     setTiempo(0);
     setCronometroActivo(false);
 
     setDetalleConteo({});
+    detalleConteoRef.current = {};
     setMarcadosResultados({});
 
     setProductos([]);
@@ -634,25 +685,69 @@ export default function App() {
     setVerHistorial(true);
   }
 
-  async function abrirDetalleHistorial(conteo) {
-    const { data, error } = await supabase
-      .from("conteos_detalle")
-      .select("*")
-      .eq("conteo_id", conteo.id);
+async function abrirDetalleHistorial(conteo) {
+  const { data, error } = await supabase
+    .from("conteos_detalle")
+    .select("*")
+    .eq("conteo_id", conteo.id);
 
-    if (error) {
-      alert("Error cargando detalle");
-      return;
-    }
-
-    const ordenados = ORDEN_RESULTADOS
-      .map((id) => (data || []).find((item) => item.sku_codigo === id))
-      .filter(Boolean);
-
-    setConteoHistorialActual(conteo);
-    setDetalleItemsHistorial(ordenados);
-    setDetalleModal(true);
+  if (error) {
+    alert("Error cargando detalle");
+    return;
   }
+
+  const meta = localStorage.getItem(metaKey(conteo.id));
+  let detalleTextos = {};
+  let detalleCompleto = {};
+
+  if (meta) {
+    try {
+      const parsed = JSON.parse(meta);
+      detalleTextos = parsed.detalleTextos || {};
+      detalleCompleto = parsed.detalleCompleto || {};
+    } catch {
+      detalleTextos = {};
+      detalleCompleto = {};
+    }
+  }
+
+  const normalizados = (data || []).map((item) => {
+    const esEnvase = ENVASES.some((e) => e.id === item.sku_codigo);
+    const skuInfo = SKU_MAP[item.sku_codigo];
+    const metaItem = detalleCompleto[item.sku_codigo];
+
+    const cajasTexto = esEnvase
+      ? (metaItem?.cajas_texto ?? detalleTextos[item.sku_codigo] ?? String(item.cajas || ""))
+      : "";
+
+   const cajasCalculadas = esEnvase
+  ? calcularExpresion(cajasTexto)
+  : Number(metaItem?.cajas ?? item.cajas ?? 0);
+    const botellasMas = Number(metaItem?.botellas_mas ?? item.botellas_mas ?? 0);
+    const botellasMenos = Number(metaItem?.botellas_menos ?? item.botellas_menos ?? 0);
+
+    return {
+      ...item,
+      sku_codigo: item.sku_codigo,
+      descripcion: metaItem?.descripcion || item.descripcion,
+      cajas: cajasCalculadas,
+      cajas_texto: cajasTexto,
+      botellas_mas: botellasMas,
+      botellas_menos: botellasMenos,
+      total_botellas: esEnvase
+  ? cajasCalculadas * (skuInfo?.pack || 0) + botellasMas - botellasMenos
+  : Number(metaItem?.cajas ?? item.cajas ?? 0)
+    };
+  });
+
+  const ordenados = ORDEN_RESULTADOS
+    .map((id) => normalizados.find((item) => item.sku_codigo === id))
+    .filter(Boolean);
+
+  setConteoHistorialActual(conteo);
+  setDetalleItemsHistorial(ordenados);
+  setDetalleModal(true);
+}
 
   async function editarConteo(conteo) {
     setTransporte(conteo.transporte || "");
@@ -670,7 +765,7 @@ export default function App() {
 
     if (error) {
       alert("Error cargando detalle");
-      return;
+      return null;
     }
 
     let detalleTextos = {};
@@ -693,14 +788,23 @@ export default function App() {
 
     const nuevoDetalle = {};
     (data || []).forEach((item) => {
+      const skuInfo = SKU_MAP[item.sku_codigo];
+      const esEnvase = ENVASES.some((e) => e.id === item.sku_codigo);
+
       nuevoDetalle[item.sku_codigo] = {
         sku_codigo: item.sku_codigo,
         descripcion: item.descripcion,
         cajas: item.cajas || 0,
-        cajas_texto: detalleTextos[item.sku_codigo] || "",
+        cajas_texto: esEnvase
+          ? (detalleTextos[item.sku_codigo] ?? String(item.cajas || ""))
+          : "",
         botellas_mas: item.botellas_mas || 0,
         botellas_menos: item.botellas_menos || 0,
-        total_botellas: item.total_botellas || 0
+        total_botellas: esEnvase
+          ? ((item.cajas || 0) * (skuInfo?.pack || 0)) +
+            (item.botellas_mas || 0) -
+            (item.botellas_menos || 0)
+          : (item.cajas || 0)
       };
     });
 
@@ -712,33 +816,34 @@ export default function App() {
       top: 0,
       behavior: "smooth"
     });
+
+    return nuevoDetalle;
   }
 
-  function editarSkuDesdeHistorial(item) {
+  async function editarSkuDesdeHistorial(item) {
     if (!conteoHistorialActual) return;
 
-    editarConteo(conteoHistorialActual);
+    const detalleCargado = await editarConteo(conteoHistorialActual);
+    if (!detalleCargado) return;
 
     const sku = SKU_MAP[item.sku_codigo];
     if (!sku) return;
 
-    setTimeout(() => {
-      const actual = detalleConteo[item.sku_codigo];
+    const actual = detalleCargado[item.sku_codigo];
 
-      if (ENVASES.some((e) => e.id === item.sku_codigo)) {
-        setModalInicial({
-          cajas: actual?.cajas_texto || "",
-          mas: actual?.botellas_mas || "",
-          menos: actual?.botellas_menos || ""
-        });
-      } else {
-        setModalInicial({
-          cantidad: actual?.cajas || item.cajas || ""
-        });
-      }
+    if (ENVASES.some((e) => e.id === item.sku_codigo)) {
+      setModalInicial({
+        cajas: actual?.cajas_texto || String(actual?.cajas || ""),
+        mas: actual?.botellas_mas || "",
+        menos: actual?.botellas_menos || ""
+      });
+    } else {
+      setModalInicial({
+        cantidad: actual?.cajas || item.cajas || ""
+      });
+    }
 
-      setSkuActivo(sku);
-    }, 180);
+    setSkuActivo(sku);
   }
 
   async function generarImagenDesdeHistorial(conteo) {
@@ -1314,8 +1419,17 @@ export default function App() {
       {verHistorial && (
         <section style={{ ...cardStyle, marginTop: 20 }}>
           <h2>Historial de Conteos</h2>
-
-          {historial.map((c) => (
+<input
+  placeholder="Buscar por transporte"
+  value={busquedaTransporte}
+  onChange={(e) => setBusquedaTransporte(e.target.value)}
+  style={{
+    ...inputStyle,
+    marginTop: 8,
+    marginBottom: 16
+  }}
+/>
+       {historialFiltrado.map((c) => (
             <div key={c.id} style={historyItemStyle}>
               <div style={{ fontSize: 20, fontWeight: "bold" }}>Conteo #{c.id}</div>
               <div>Transporte: {c.transporte}</div>
@@ -1406,7 +1520,7 @@ export default function App() {
                 envases1000Hist.reduce((acc, d) => acc + (d.cajas || 0), 0) +
                 (jabasHist.find((d) => d.sku_codigo === "JABA_1000")?.cajas || 0);
 
-              function renderFilaHistorial(key, texto, onEdit = null) {
+              function renderFilaHistorial(key, texto) {
                 const [nombre, valorRaw] = texto.split("→");
                 let valor = valorRaw?.trim() || "";
 
@@ -1435,31 +1549,11 @@ export default function App() {
                       cursor: "pointer"
                     }}
                   >
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center"
-                      }}
-                    >
-                      <div style={{ fontWeight: "700" }}>
-                        {nombre} = <span style={{ fontWeight: "900" }}>{esParentesis ? `(${valor})` : valor}</span>
-                      </div>
-
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (onEdit) onEdit();
-                        }}
-                        style={{
-                          padding: "4px 8px",
-                          borderRadius: 6,
-                          border: "1px solid #ccc",
-                          background: "#fff"
-                        }}
-                      >
-                        Modificar
-                      </button>
+                    <div style={{ fontWeight: "700" }}>
+                      {nombre} ={" "}
+                      <span style={{ fontWeight: "900" }}>
+                        {esParentesis ? `(${valor})` : valor}
+                      </span>
                     </div>
                   </div>
                 );
@@ -1473,13 +1567,7 @@ export default function App() {
                       {productosHist.map((p, i) =>
                         renderFilaHistorial(
                           `producto_${p.nombre}_${i}`,
-                          `${p.nombre} → ${p.cantidad}`,
-                          () => {
-                            setNombreProducto(p.nombre);
-                            setCantidadProducto(String(p.cantidad));
-                            setProductoEditando(i);
-                            setDetalleModal(false);
-                          }
+                          `${p.nombre} → ${p.cantidad}`
                         )
                       )}
                     </>
@@ -1490,16 +1578,7 @@ export default function App() {
                       <div style={{ borderTop: "2px solid #eee", margin: "12px 0" }} />
                       <h3 style={{ fontSize: 22, marginBottom: 10 }}>PFN</h3>
                       {pfnHist.map((p, i) =>
-                        renderFilaHistorial(
-                          `pfn_${p.nombre}_${i}`,
-                          `${p.nombre} → ${p.cantidad}`,
-                          () => {
-                            setNombrePfn(p.nombre);
-                            setCantidadPfn(String(p.cantidad));
-                            setPfnEditando(i);
-                            setDetalleModal(false);
-                          }
-                        )
+                        renderFilaHistorial(`pfn_${p.nombre}_${i}`, `${p.nombre} → ${p.cantidad}`)
                       )}
                     </>
                   )}
@@ -1514,30 +1593,27 @@ export default function App() {
                       {envases330Hist.map((d) =>
                         renderFilaHistorial(
                           d.descripcion,
-                          `${d.descripcion} → ${d.total_botellas} botellas`,
-                          () => editarSkuDesdeHistorial(d)
+                          `${d.descripcion} → ${d.total_botellas} botellas`
                         )
                       )}
 
                       {envases11Hist.map((d) =>
                         renderFilaHistorial(
                           d.descripcion,
-                          `${d.descripcion} → ${d.total_botellas} botellas`,
-                          () => editarSkuDesdeHistorial(d)
+                          `${d.descripcion} → ${d.total_botellas} botellas`
                         )
                       )}
 
                       {envases1000Hist.map((d) =>
                         renderFilaHistorial(
                           d.descripcion,
-                          `${d.descripcion} → ${d.total_botellas} botellas`,
-                          () => editarSkuDesdeHistorial(d)
+                          `${d.descripcion} → ${d.total_botellas} botellas`
                         )
                       )}
                     </>
                   )}
 
-                 {(jabasHist.length > 0 ||
+                  {(jabasHist.length > 0 ||
   totalJabas330Hist > 0 ||
   totalJabas11Hist > 0 ||
   totalJabas1000Hist > 0) && (
@@ -1585,7 +1661,6 @@ export default function App() {
     )}
   </>
 )}
- 
 
                   {activosHist.length > 0 && (
                     <>
@@ -1593,11 +1668,7 @@ export default function App() {
                       <h3 style={{ fontSize: 22, marginBottom: 10 }}>Activos</h3>
 
                       {activosHist.map((d) =>
-                        renderFilaHistorial(
-                          d.descripcion,
-                          `${d.descripcion} → ${d.cajas}`,
-                          () => editarSkuDesdeHistorial(d)
-                        )
+                        renderFilaHistorial(d.descripcion, `${d.descripcion} → ${d.cajas}`)
                       )}
                     </>
                   )}
@@ -1621,10 +1692,7 @@ export default function App() {
       )}
 
       {dashboardVisible && (
-        <DashboardModal
-          data={dashboardData}
-          onClose={() => setDashboardVisible(false)}
-        />
+        <DashboardModal data={dashboardData} onClose={() => setDashboardVisible(false)} />
       )}
 
       {skuActivo && (
